@@ -37,9 +37,7 @@ var (
 	threadzStartRE = lazyregexp.New(`--- threadz \d+ ---`)
 	threadStartRE  = lazyregexp.New(`--- Thread ([[:xdigit:]]+) \(name: (.*)/(\d+)\) stack: ---`)
 
-	procMapsRE = lazyregexp.New(
-		`([[:xdigit:]]+)-([[:xdigit:]]+)\s+([-rwxp]+)\s+([[:xdigit:]]+)\s+([[:xdigit:]]+):([[:xdigit:]]+)\s+([[:digit:]]+)\s*(\S+)?`,
-	)
+	procMapsRE = lazyregexp.New(`([[:xdigit:]]+)-([[:xdigit:]]+)\s+([-rwxp]+)\s+([[:xdigit:]]+)\s+([[:xdigit:]]+):([[:xdigit:]]+)\s+([[:digit:]]+)\s*(\S+)?`)
 
 	briefMapsRE = lazyregexp.New(`\s*([[:xdigit:]]+)-([[:xdigit:]]+):\s*(\S+)(\s.*@)?([[:xdigit:]]+)?`)
 
@@ -237,46 +235,14 @@ func get64l(b []byte) (uint64, []byte) {
 	if len(b) < 8 {
 		return 0, nil
 	}
-	return uint64(
-		b[0],
-	) | uint64(
-		b[1],
-	)<<8 | uint64(
-		b[2],
-	)<<16 | uint64(
-		b[3],
-	)<<24 | uint64(
-		b[4],
-	)<<32 | uint64(
-		b[5],
-	)<<40 | uint64(
-		b[6],
-	)<<48 | uint64(
-		b[7],
-	)<<56, b[8:]
+	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 | uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56, b[8:]
 }
 
 func get64b(b []byte) (uint64, []byte) {
 	if len(b) < 8 {
 		return 0, nil
 	}
-	return uint64(
-		b[7],
-	) | uint64(
-		b[6],
-	)<<8 | uint64(
-		b[5],
-	)<<16 | uint64(
-		b[4],
-	)<<24 | uint64(
-		b[3],
-	)<<32 | uint64(
-		b[2],
-	)<<40 | uint64(
-		b[1],
-	)<<48 | uint64(
-		b[0],
-	)<<56, b[8:]
+	return uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 | uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56, b[8:]
 }
 
 // ParseTracebacks parses a set of tracebacks and returns a newly
@@ -1191,12 +1157,10 @@ func (p *Profile) addLegacyFrameInfo() {
 	}
 }
 
-var (
-	heapzSampleTypes       = []string{"allocations", "size"} // early Go pprof profiles
-	heapzInUseSampleTypes  = []string{"inuse_objects", "inuse_space"}
-	heapzAllocSampleTypes  = []string{"alloc_objects", "alloc_space"}
-	contentionzSampleTypes = []string{"contentions", "delay"}
-)
+var heapzSampleTypes = []string{"allocations", "size"} // early Go pprof profiles
+var heapzInUseSampleTypes = []string{"inuse_objects", "inuse_space"}
+var heapzAllocSampleTypes = []string{"alloc_objects", "alloc_space"}
+var contentionzSampleTypes = []string{"contentions", "delay"}
 
 func isProfileType(p *Profile, t []string) bool {
 	st := p.SampleType

@@ -20,7 +20,7 @@ import (
 // unique type to prevent assignment.
 type clientEventContextKey struct{}
 
-// ContextClientTrace returns the ClientTrace associated with the
+// ContextClientTrace returns the [ClientTrace] associated with the
 // provided context. If none, it returns nil.
 func ContextClientTrace(ctx context.Context) *ClientTrace {
 	trace, _ := ctx.Value(clientEventContextKey{}).(*ClientTrace)
@@ -36,7 +36,6 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	if trace == nil {
 		panic("nil trace")
 	}
-
 	old := ContextClientTrace(ctx)
 	trace.compose(old)
 
@@ -66,7 +65,6 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 		}
 		ctx = context.WithValue(ctx, nettrace.TraceKey{}, nt)
 	}
-
 	return ctx
 }
 
@@ -236,7 +234,7 @@ func (t *ClientTrace) hasNetHooks() bool {
 	return t.DNSStart != nil || t.DNSDone != nil || t.ConnectStart != nil || t.ConnectDone != nil
 }
 
-// GotConnInfo is the argument to the ClientTrace.GotConn function and
+// GotConnInfo is the argument to the [ClientTrace.GotConn] function and
 // contains information about the obtained connection.
 type GotConnInfo struct {
 	// Conn is the connection that was obtained. It is owned by

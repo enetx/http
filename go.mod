@@ -1,6 +1,6 @@
 module gitlab.com/x0xO/http
 
-go 1.21
+go 1.22
 
 require golang.org/x/net v0.20.0
 

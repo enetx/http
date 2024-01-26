@@ -351,7 +351,7 @@ func (t *transferWriter) writeBody(w io.Writer) (err error) {
 	// OS-level optimizations in the event that the body is an
 	// *os.File.
 	if t.Body != nil {
-		body := t.unwrapBody()
+		var body = t.unwrapBody()
 		if chunked(t.TransferEncoding) {
 			if bw, ok := w.(*bufio.Writer); ok && !t.IsResponse {
 				w = &internal.FlushAfterChunkWriter{Writer: bw}
@@ -410,7 +410,10 @@ func (t *transferWriter) writeBody(w io.Writer) (err error) {
 //
 // This function is only intended for use in writeBody.
 func (t *transferWriter) doBodyCopy(dst io.Writer, src io.Reader) (n int64, err error) {
-	n, err = io.Copy(dst, src)
+	buf := getCopyBuf()
+	defer putCopyBuf(buf)
+
+	n, err = io.CopyBuffer(dst, src, buf)
 	if err != nil && err != io.EOF {
 		t.bodyReadError = err
 	}
@@ -528,7 +531,7 @@ func readTransfer(msg any, r *bufio.Reader) (err error) {
 		return err
 	}
 	if isResponse && t.RequestMethod == "HEAD" {
-		if n, err := parseContentLength(t.Header.get("Content-Length")); err != nil {
+		if n, err := parseContentLength(t.Header["Content-Length"]); err != nil {
 			return err
 		} else {
 			t.ContentLength = n
@@ -708,18 +711,15 @@ func fixLength(isResponse bool, status int, requestMethod string, header Header,
 		return -1, nil
 	}
 
-	// Logic based on Content-Length
-	var cl string
-	if len(contentLens) == 1 {
-		cl = textproto.TrimString(contentLens[0])
-	}
-	if cl != "" {
-		n, err := parseContentLength(cl)
+	if len(contentLens) > 0 {
+		// Logic based on Content-Length
+		n, err := parseContentLength(contentLens)
 		if err != nil {
 			return -1, err
 		}
 		return n, nil
 	}
+
 	header.Del("Content-Length")
 
 	if isRequest {
@@ -817,10 +817,10 @@ type body struct {
 	onHitEOF   func() // if non-nil, func to call when EOF is Read
 }
 
-// ErrBodyReadAfterClose is returned when reading a Request or Response
+// ErrBodyReadAfterClose is returned when reading a [Request] or [Response]
 // Body after the body has been closed. This typically happens when the body is
-// read after an HTTP Handler calls WriteHeader or Write on its
-// ResponseWriter.
+// read after an HTTP [Handler] calls WriteHeader or Write on its
+// [ResponseWriter].
 var ErrBodyReadAfterClose = errors.New("http: invalid Read on closed Body")
 
 func (b *body) Read(p []byte) (n int, err error) {
@@ -1039,10 +1039,15 @@ func (bl bodyLocked) Read(p []byte) (n int, err error) {
 	return bl.b.readLocked(p)
 }
 
-// parseContentLength trims whitespace from s and returns -1 if no value
-// is set, or the value if it's >= 0.
-func parseContentLength(cl string) (int64, error) {
-	cl = textproto.TrimString(cl)
+// parseContentLength checks that the header is valid and then trims
+// whitespace. It returns -1 if no value is set otherwise the value
+// if it's >= 0.
+func parseContentLength(clHeaders []string) (int64, error) {
+	if len(clHeaders) == 0 {
+		return -1, nil
+	}
+
+	cl := textproto.TrimString(clHeaders[0])
 	if cl == "" {
 		return -1, nil
 	}
@@ -1074,13 +1079,11 @@ func (fr finishAsyncByteRead) Read(p []byte) (n int, err error) {
 	return
 }
 
-var (
-	nopCloserType         = reflect.TypeOf(io.NopCloser(nil))
-	nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
+var nopCloserType = reflect.TypeOf(io.NopCloser(nil))
+var nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
 		io.Reader
 		io.WriterTo
 	}{}))
-)
 
 // unwrapNopCloser return the underlying reader and true if r is a NopCloser
 // else it return false.
