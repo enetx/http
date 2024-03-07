@@ -7174,7 +7174,6 @@ type http2Transport struct {
 	// waiting for their turn.
 	StrictMaxConcurrentStreams bool
 
-	// https://go-review.googlesource.com/c/net/+/497195
 	// IdleConnTimeout is the maximum amount of time an idle
 	// (keep-alive) connection will remain idle before closing
 	// itself.
@@ -10040,6 +10039,15 @@ func (rl *http2clientConnReadLoop) processWindowUpdate(f *http2WindowUpdateFrame
 		fl = &cs.flow
 	}
 	if !fl.add(int32(f.Increment)) {
+		// For stream, the sender sends RST_STREAM with an error code of FLOW_CONTROL_ERROR
+		if cs != nil {
+			rl.endStreamError(cs, http2StreamError{
+				StreamID: f.StreamID,
+				Code:     http2ErrCodeFlowControl,
+			})
+			return nil
+		}
+
 		return http2ConnectionError(http2ErrCodeFlowControl)
 	}
 	cc.cond.Broadcast()
