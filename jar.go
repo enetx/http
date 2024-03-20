@@ -4,9 +4,7 @@
 
 package http
 
-import (
-	"net/url"
-)
+import "net/url"
 
 // A CookieJar manages storage and use of cookies in HTTP requests.
 //

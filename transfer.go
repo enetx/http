@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/x0xO/http/httptrace"
-	"gitlab.com/x0xO/http/internal"
-	"gitlab.com/x0xO/http/internal/ascii"
+	"github.com/enetx/http/httptrace"
+	"github.com/enetx/http/internal"
+	"github.com/enetx/http/internal/ascii"
 
 	"golang.org/x/net/http/httpguts"
 )

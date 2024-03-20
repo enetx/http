@@ -87,8 +87,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/x0xO/http"
-	"gitlab.com/x0xO/http/internal/profile"
+	"github.com/enetx/http"
+	"github.com/enetx/http/internal/profile"
 )
 
 func init() {
@@ -442,7 +442,13 @@ Types of profiles available:
 
 	for _, profile := range profiles {
 		link := &url.URL{Path: profile.Href, RawQuery: "debug=1"}
-		fmt.Fprintf(&b, "<tr><td>%d</td><td><a href='%s'>%s</a></td></tr>\n", profile.Count, link, html.EscapeString(profile.Name))
+		fmt.Fprintf(
+			&b,
+			"<tr><td>%d</td><td><a href='%s'>%s</a></td></tr>\n",
+			profile.Count,
+			link,
+			html.EscapeString(profile.Name),
+		)
 	}
 
 	b.WriteString(`</table>
@@ -453,7 +459,12 @@ Profile Descriptions:
 <ul>
 `)
 	for _, profile := range profiles {
-		fmt.Fprintf(&b, "<li><div class=profile-name>%s: </div> %s</li>\n", html.EscapeString(profile.Name), html.EscapeString(profile.Desc))
+		fmt.Fprintf(
+			&b,
+			"<li><div class=profile-name>%s: </div> %s</li>\n",
+			html.EscapeString(profile.Name),
+			html.EscapeString(profile.Desc),
+		)
 	}
 	b.WriteString(`</ul>
 </p>

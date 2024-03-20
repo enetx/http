@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/x0xO/http"
-	"gitlab.com/x0xO/http/internal/testcert"
+	"github.com/enetx/http"
+	"github.com/enetx/http/internal/testcert"
 )
 
 // A Server is an HTTP server listening on a system-chosen port on the
@@ -88,7 +88,12 @@ var serveFlag string
 
 func init() {
 	if strSliceContainsPrefix(os.Args, "-httptest.serve=") || strSliceContainsPrefix(os.Args, "--httptest.serve=") {
-		flag.StringVar(&serveFlag, "httptest.serve", "", "if non-empty, httptest.NewServer serves on this address and blocks.")
+		flag.StringVar(
+			&serveFlag,
+			"httptest.serve",
+			"",
+			"if non-empty, httptest.NewServer serves on this address and blocks.",
+		)
 	}
 }
 

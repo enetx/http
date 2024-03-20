@@ -18,7 +18,7 @@ import (
 	"strings"
 	"sync"
 
-	"gitlab.com/x0xO/http"
+	"github.com/enetx/http"
 )
 
 // hello world, the web server

@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/x0xO/http/internal/ascii"
+	"github.com/enetx/http/internal/ascii"
 )
 
 // A Client is an HTTP client. Its zero value ([DefaultClient]) is a
@@ -274,7 +274,10 @@ func send(ireq *Request, rt RoundTripper, deadline time.Time) (resp *Response, d
 		return nil, didTimeout, err
 	}
 	if resp == nil {
-		return nil, didTimeout, fmt.Errorf("http: RoundTripper implementation (%T) returned a nil *Response with a nil error", rt)
+		return nil, didTimeout, fmt.Errorf(
+			"http: RoundTripper implementation (%T) returned a nil *Response with a nil error",
+			rt,
+		)
 	}
 	if resp.Body == nil {
 		// The documentation on the Body field says “The http Client and Transport
@@ -288,7 +291,11 @@ func send(ireq *Request, rt RoundTripper, deadline time.Time) (resp *Response, d
 		// If the ContentLength allows the Body to be empty, fill in an empty one
 		// here to ensure that it is non-nil.
 		if resp.ContentLength > 0 && req.Method != "HEAD" {
-			return nil, didTimeout, fmt.Errorf("http: RoundTripper implementation (%T) returned a *Response with content length %d but a nil Body", rt, resp.ContentLength)
+			return nil, didTimeout, fmt.Errorf(
+				"http: RoundTripper implementation (%T) returned a *Response with content length %d but a nil Body",
+				rt,
+				resp.ContentLength,
+			)
 		}
 		resp.Body = io.NopCloser(strings.NewReader(""))
 	}
@@ -508,7 +515,11 @@ func (c *Client) checkRedirect(req *Request, via []*Request) error {
 
 // redirectBehavior describes what should happen when the
 // client encounters a 3xx status code from the server.
-func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirectMethod string, shouldRedirect, includeBody bool) {
+func redirectBehavior(
+	reqMethod string,
+	resp *Response,
+	ireq *Request,
+) (redirectMethod string, shouldRedirect, includeBody bool) {
 	switch resp.StatusCode {
 	case 301, 302, 303:
 		redirectMethod = reqMethod

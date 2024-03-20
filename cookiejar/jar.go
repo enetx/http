@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/x0xO/http"
-	"gitlab.com/x0xO/http/internal/ascii"
+	"github.com/enetx/http"
+	"github.com/enetx/http/internal/ascii"
 )
 
 // PublicSuffixList provides the public suffix of a domain. For example:

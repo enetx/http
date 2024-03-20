@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gitlab.com/x0xO/http/internal/ascii"
+	"github.com/enetx/http/internal/ascii"
 )
 
 // These parameter values are specified in section 5.

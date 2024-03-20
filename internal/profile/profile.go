@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/x0xO/http/internal/lazyregexp"
+	"github.com/enetx/http/internal/lazyregexp"
 )
 
 // Profile is an in-memory representation of profile.proto.
@@ -147,7 +147,7 @@ func Parse(r io.Reader) (*Profile, error) {
 	p, pErr := parseUncompressed(orig)
 	if pErr != nil {
 		p, lErr = parseLegacy(orig)
-		}
+	}
 	if pErr != nil && lErr != nil {
 		return nil, fmt.Errorf("parsing profile: not a valid proto profile (%w) or legacy profile (%w)", pErr, lErr)
 	}
@@ -158,9 +158,11 @@ func Parse(r io.Reader) (*Profile, error) {
 	return p, nil
 }
 
-var errUnrecognized = fmt.Errorf("unrecognized profile format")
-var errMalformed = fmt.Errorf("malformed profile format")
-var ErrNoData = fmt.Errorf("empty input file")
+var (
+	errUnrecognized = fmt.Errorf("unrecognized profile format")
+	errMalformed    = fmt.Errorf("malformed profile format")
+	ErrNoData       = fmt.Errorf("empty input file")
+)
 
 func parseLegacy(data []byte) (*Profile, error) {
 	parsers := []func([]byte) (*Profile, error){
@@ -345,7 +347,6 @@ func (p *Profile) Aggregate(inlineFrame, function, filename, linenumber, address
 // Print dumps a text representation of a profile. Intended mainly
 // for debugging purposes.
 func (p *Profile) String() string {
-
 	ss := make([]string, 0, len(p.Sample)+len(p.Mapping)+len(p.Location))
 	if pt := p.PeriodType; pt != nil {
 		ss = append(ss, fmt.Sprintf("PeriodType: %s %s", pt.Type, pt.Unit))

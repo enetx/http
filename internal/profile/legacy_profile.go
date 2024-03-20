@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/x0xO/http/internal/lazyregexp"
+	"github.com/enetx/http/internal/lazyregexp"
 )
 
 var (
@@ -37,7 +37,9 @@ var (
 	threadzStartRE = lazyregexp.New(`--- threadz \d+ ---`)
 	threadStartRE  = lazyregexp.New(`--- Thread ([[:xdigit:]]+) \(name: (.*)/(\d+)\) stack: ---`)
 
-	procMapsRE = lazyregexp.New(`([[:xdigit:]]+)-([[:xdigit:]]+)\s+([-rwxp]+)\s+([[:xdigit:]]+)\s+([[:xdigit:]]+):([[:xdigit:]]+)\s+([[:digit:]]+)\s*(\S+)?`)
+	procMapsRE = lazyregexp.New(
+		`([[:xdigit:]]+)-([[:xdigit:]]+)\s+([-rwxp]+)\s+([[:xdigit:]]+)\s+([[:xdigit:]]+):([[:xdigit:]]+)\s+([[:digit:]]+)\s*(\S+)?`,
+	)
 
 	briefMapsRE = lazyregexp.New(`\s*([[:xdigit:]]+)-([[:xdigit:]]+):\s*(\S+)(\s.*@)?([[:xdigit:]]+)?`)
 
@@ -235,14 +237,46 @@ func get64l(b []byte) (uint64, []byte) {
 	if len(b) < 8 {
 		return 0, nil
 	}
-	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 | uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56, b[8:]
+	return uint64(
+		b[0],
+	) | uint64(
+		b[1],
+	)<<8 | uint64(
+		b[2],
+	)<<16 | uint64(
+		b[3],
+	)<<24 | uint64(
+		b[4],
+	)<<32 | uint64(
+		b[5],
+	)<<40 | uint64(
+		b[6],
+	)<<48 | uint64(
+		b[7],
+	)<<56, b[8:]
 }
 
 func get64b(b []byte) (uint64, []byte) {
 	if len(b) < 8 {
 		return 0, nil
 	}
-	return uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 | uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56, b[8:]
+	return uint64(
+		b[7],
+	) | uint64(
+		b[6],
+	)<<8 | uint64(
+		b[5],
+	)<<16 | uint64(
+		b[4],
+	)<<24 | uint64(
+		b[3],
+	)<<32 | uint64(
+		b[2],
+	)<<40 | uint64(
+		b[1],
+	)<<48 | uint64(
+		b[0],
+	)<<56, b[8:]
 }
 
 // ParseTracebacks parses a set of tracebacks and returns a newly
@@ -420,7 +454,12 @@ func cpuProfile(b []byte, period int64, parse func(b []byte) (uint64, []byte)) (
 // Addresses from stack traces may point to the next instruction after
 // each call. Optionally adjust by -1 to land somewhere on the actual
 // call (except for the leaf, which is not a call).
-func parseCPUSamples(b []byte, parse func(b []byte) (uint64, []byte), adjust bool, p *Profile) ([]byte, map[uint64]*Location, error) {
+func parseCPUSamples(
+	b []byte,
+	parse func(b []byte) (uint64, []byte),
+	adjust bool,
+	p *Profile,
+) ([]byte, map[uint64]*Location, error) {
 	locs := make(map[uint64]*Location)
 	for len(b) > 0 {
 		var count, nstk uint64
@@ -588,10 +627,17 @@ func parseHeap(b []byte) (p *Profile, err error) {
 }
 
 // parseHeapSample parses a single row from a heap profile into a new Sample.
-func parseHeapSample(line string, rate int64, sampling string) (value []int64, blocksize int64, addrs []uint64, err error) {
+func parseHeapSample(
+	line string,
+	rate int64,
+	sampling string,
+) (value []int64, blocksize int64, addrs []uint64, err error) {
 	sampleData := heapSampleRE.FindStringSubmatch(line)
 	if len(sampleData) != 6 {
-		return value, blocksize, addrs, fmt.Errorf("unexpected number of sample values: got %d, want 6", len(sampleData))
+		return value, blocksize, addrs, fmt.Errorf(
+			"unexpected number of sample values: got %d, want 6",
+			len(sampleData),
+		)
 	}
 
 	// Use first two values by default; tcmalloc sampling generates the
@@ -1157,10 +1203,12 @@ func (p *Profile) addLegacyFrameInfo() {
 	}
 }
 
-var heapzSampleTypes = []string{"allocations", "size"} // early Go pprof profiles
-var heapzInUseSampleTypes = []string{"inuse_objects", "inuse_space"}
-var heapzAllocSampleTypes = []string{"alloc_objects", "alloc_space"}
-var contentionzSampleTypes = []string{"contentions", "delay"}
+var (
+	heapzSampleTypes       = []string{"allocations", "size"} // early Go pprof profiles
+	heapzInUseSampleTypes  = []string{"inuse_objects", "inuse_space"}
+	heapzAllocSampleTypes  = []string{"alloc_objects", "alloc_space"}
+	contentionzSampleTypes = []string{"contentions", "delay"}
+)
 
 func isProfileType(p *Profile, t []string) bool {
 	st := p.SampleType

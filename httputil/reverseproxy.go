@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/x0xO/http"
-	"gitlab.com/x0xO/http/httptrace"
-	"gitlab.com/x0xO/http/internal/ascii"
+	"github.com/enetx/http"
+	"github.com/enetx/http/httptrace"
+	"github.com/enetx/http/internal/ascii"
 
 	"golang.org/x/net/http/httpguts"
 )
@@ -728,13 +728,21 @@ func (p *ReverseProxy) handleUpgradeResponse(rw http.ResponseWriter, req *http.R
 		p.getErrorHandler()(rw, req, fmt.Errorf("backend tried to switch to invalid protocol %q", resUpType))
 	}
 	if !ascii.EqualFold(reqUpType, resUpType) {
-		p.getErrorHandler()(rw, req, fmt.Errorf("backend tried to switch protocol %q when %q was requested", resUpType, reqUpType))
+		p.getErrorHandler()(
+			rw,
+			req,
+			fmt.Errorf("backend tried to switch protocol %q when %q was requested", resUpType, reqUpType),
+		)
 		return
 	}
 
 	backConn, ok := res.Body.(io.ReadWriteCloser)
 	if !ok {
-		p.getErrorHandler()(rw, req, fmt.Errorf("internal error: 101 switching protocols response with non-writable body"))
+		p.getErrorHandler()(
+			rw,
+			req,
+			fmt.Errorf("internal error: 101 switching protocols response with non-writable body"),
+		)
 		return
 	}
 

@@ -1,4 +1,4 @@
-module gitlab.com/x0xO/http
+module github.com/enetx/http
 
 go 1.22
 

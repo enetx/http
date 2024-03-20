@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"gitlab.com/x0xO/http"
+	"github.com/enetx/http"
 )
 
 var headerWriteTests = []struct {

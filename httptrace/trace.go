@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"time"
 
-	"gitlab.com/x0xO/http/internal/nettrace"
+	"github.com/enetx/http/internal/nettrace"
 )
 
 // unique type to prevent assignment.

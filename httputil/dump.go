@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/x0xO/http"
+	"github.com/enetx/http"
 )
 
 // drainBody reads all of b to memory and then returns two equivalent

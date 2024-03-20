@@ -12,7 +12,7 @@ import (
 	"io"
 	"strings"
 
-	"gitlab.com/x0xO/http"
+	"github.com/enetx/http"
 )
 
 // NewRequest returns a new incoming server Request, suitable

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/x0xO/http"
-	"gitlab.com/x0xO/http/cookiejar"
-	"gitlab.com/x0xO/http/httptest"
+	"github.com/enetx/http"
+	"github.com/enetx/http/cookiejar"
+	"github.com/enetx/http/httptest"
 	"golang.org/x/net/publicsuffix"
 )
 
