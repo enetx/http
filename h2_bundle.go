@@ -3351,7 +3351,9 @@ const (
 	http2defaultMaxReadFrameSize = 1 << 20
 )
 
-var http2clientPreface = []byte(http2ClientPreface)
+var (
+	http2clientPreface = []byte(http2ClientPreface)
+)
 
 type http2streamState int
 
@@ -7679,7 +7681,7 @@ type http2ClientConn struct {
 	readerErr  error         // set before readerDone is closed
 
 	idleTimeout time.Duration // or 0 for never
-	idleTimer   *time.Timer
+	idleTimer   http2timer
 
 	mu              sync.Mutex   // guards following
 	cond            *sync.Cond   // hold mu; broadcast on flow/closed changes
@@ -8198,7 +8200,7 @@ func (t *http2Transport) newClientConn(c net.Conn, singleUse bool, hooks *http2t
 	}
 	if d := t.idleConnTimeout(); d != 0 {
 		cc.idleTimeout = d
-		cc.idleTimer = time.AfterFunc(d, cc.onIdleTimeout)
+		cc.idleTimer = cc.afterFunc(d, cc.onIdleTimeout)
 	}
 	if http2VerboseLogs {
 		t.vlogf("http2: Transport creating client conn %p to %v", cc, c.RemoteAddr())
