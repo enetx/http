@@ -1046,10 +1046,12 @@ func parseContentLength(clHeaders []string) (int64, error) {
 	if len(clHeaders) == 0 {
 		return -1, nil
 	}
-
 	cl := textproto.TrimString(clHeaders[0])
+
+	// The Content-Length must be a valid numeric value.
+	// See: https://datatracker.ietf.org/doc/html/rfc2616/#section-14.13
 	if cl == "" {
-		return -1, nil
+		return 0, badStringError("invalid empty Content-Length", cl)
 	}
 	n, err := strconv.ParseUint(cl, 10, 63)
 	if err != nil {

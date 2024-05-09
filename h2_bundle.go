@@ -1898,6 +1898,9 @@ func http2terminalReadFrameError(err error) bool {
 // returned error is ErrFrameTooLarge. Other errors may be of type
 // ConnectionError, StreamError, or anything else from the underlying
 // reader.
+//
+// If ReadFrame returns an error and a non-nil Frame, the Frame's StreamID
+// indicates the stream responsible for the error.
 func (fr *http2Framer) ReadFrame() (http2Frame, error) {
 	fr.errDetail = nil
 	if fr.lastFrame != nil {
@@ -2929,7 +2932,7 @@ func (fr *http2Framer) maxHeaderStringLen() int {
 // readMetaFrame returns 0 or more CONTINUATION frames from fr and
 // merge them into the provided hf and returns a MetaHeadersFrame
 // with the decoded hpack values.
-func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (*http2MetaHeadersFrame, error) {
+func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (http2Frame, error) {
 	if fr.AllowIllegalReads {
 		return nil, errors.New("illegal use of AllowIllegalReads with ReadMetaHeaders")
 	}
@@ -3000,7 +3003,7 @@ func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (*http2MetaHeadersFr
 			}
 			// It would be nice to send a RST_STREAM before sending the GOAWAY,
 			// but the structure of the server's frame writer makes this difficult.
-			return nil, http2ConnectionError(http2ErrCodeProtocol)
+			return mh, http2ConnectionError(http2ErrCodeProtocol)
 		}
 
 		// Also close the connection after any CONTINUATION frame following an
@@ -3012,11 +3015,11 @@ func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (*http2MetaHeadersFr
 			}
 			// It would be nice to send a RST_STREAM before sending the GOAWAY,
 			// but the structure of the server's frame writer makes this difficult.
-			return nil, http2ConnectionError(http2ErrCodeProtocol)
+			return mh, http2ConnectionError(http2ErrCodeProtocol)
 		}
 
 		if _, err := hdec.Write(frag); err != nil {
-			return nil, http2ConnectionError(http2ErrCodeCompression)
+			return mh, http2ConnectionError(http2ErrCodeCompression)
 		}
 
 		if hc.HeadersEnded() {
@@ -3033,7 +3036,7 @@ func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (*http2MetaHeadersFr
 	mh.http2HeadersFrame.invalidate()
 
 	if err := hdec.Close(); err != nil {
-		return nil, http2ConnectionError(http2ErrCodeCompression)
+		return mh, http2ConnectionError(http2ErrCodeCompression)
 	}
 	if invalid != nil {
 		fr.errDetail = invalid
@@ -4557,11 +4560,7 @@ func http2isClosedConnError(err error) bool {
 		return false
 	}
 
-	// TODO: remove this string search and be more like the Windows
-	// case below. That might involve modifying the standard library
-	// to return better error types.
-	str := err.Error()
-	if strings.Contains(str, "use of closed network connection") {
+	if errors.Is(err, net.ErrClosed) {
 		return true
 	}
 
@@ -5309,6 +5308,11 @@ func (sc *http2serverConn) processFrameFromReader(res http2readFrameResult) bool
 		sc.goAway(http2ErrCodeFlowControl)
 		return true
 	case http2ConnectionError:
+		if res.f != nil {
+			if id := res.f.Header().StreamID; id > sc.maxClientStreamID {
+				sc.maxClientStreamID = id
+			}
+		}
 		sc.logf("http2: server connection error from %v: %v", sc.conn.RemoteAddr(), ev)
 		sc.goAway(http2ErrCode(ev))
 		return true // goAway will handle shutdown
@@ -8356,7 +8360,20 @@ func (cc *http2ClientConn) setGoAway(f *http2GoAwayFrame) {
 	}
 	last := f.LastStreamID
 	for streamID, cs := range cc.streams {
-		if streamID > last {
+		if streamID <= last {
+			// The server's GOAWAY indicates that it received this stream.
+			// It will either finish processing it, or close the connection
+			// without doing so. Either way, leave the stream alone for now.
+			continue
+		}
+		if streamID == 1 && cc.goAway.ErrCode != http2ErrCodeNo {
+			// Don't retry the first stream on a connection if we get a non-NO error.
+			// If the server is sending an error on a new connection,
+			// retrying the request on a new one probably isn't going to work.
+			cs.abortStreamLocked(fmt.Errorf("http2: Transport received GOAWAY from server ErrCode:%v", cc.goAway.ErrCode))
+		} else {
+			// Aborting the stream with errClentConnGotGoAway indicates that
+			// the request should be retried on a new connection.
 			cs.abortStreamLocked(http2errClientConnGotGoAway)
 		}
 	}
