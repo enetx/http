@@ -300,7 +300,6 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 			// handler, so just drop invalid headers instead.
 			continue
 		}
-
 		for _, v := range kv.Values {
 			v = headerNewlineToSpace.Replace(v)
 			v = textproto.TrimString(v)
@@ -319,9 +318,7 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 			formattedVals = nil
 		}
 	}
-
 	headerSorterPool.Put(sorter)
-
 	return nil
 }
 

@@ -19,7 +19,7 @@ import (
 	"log"
 	"net/url"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -604,6 +604,7 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 			Err: errors.New("http: nil Request.URL"),
 		}
 	}
+	_ = *c // panic early if c is nil; see go.dev/issue/53521
 
 	var (
 		deadline      = c.deadline()
@@ -726,10 +727,7 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 			// c.send() always closes req.Body
 			reqBodyClosed = true
 			if !deadline.IsZero() && didTimeout() {
-				err = &httpError{
-					err:     err.Error() + " (Client.Timeout exceeded while awaiting headers)",
-					timeout: true,
-				}
+				err = &timeoutError{err.Error() + " (Client.Timeout exceeded while awaiting headers)"}
 			}
 			return nil, uerr(err)
 		}
@@ -791,7 +789,7 @@ func (c *Client) makeHeadersCopier(ireq *Request) func(*Request) {
 						ss = append(ss, c.Name+"="+c.Value)
 					}
 				}
-				sort.Strings(ss) // Ensure deterministic headers
+				slices.Sort(ss) // Ensure deterministic headers
 				ireqhdr.Set("Cookie", strings.Join(ss, "; "))
 			}
 		}
@@ -969,10 +967,7 @@ func (b *cancelTimerBody) Read(p []byte) (n int, err error) {
 		return n, err
 	}
 	if b.reqDidTimeout() {
-		err = &httpError{
-			err:     err.Error() + " (Client.Timeout or context cancellation while reading body)",
-			timeout: true,
-		}
+		err = &timeoutError{err.Error() + " (Client.Timeout or context cancellation while reading body)"}
 	}
 	return n, err
 }
