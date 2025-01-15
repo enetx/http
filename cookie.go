@@ -95,103 +95,103 @@ func ParseCookie(line string) ([]*Cookie, error) {
 // ParseSetCookie parses a Set-Cookie header value and returns a cookie.
 // It returns an error on syntax error.
 func ParseSetCookie(line string) (*Cookie, error) {
-		parts := strings.Split(textproto.TrimString(line), ";")
-		if len(parts) == 1 && parts[0] == "" {
+	parts := strings.Split(textproto.TrimString(line), ";")
+	if len(parts) == 1 && parts[0] == "" {
 		return nil, errBlankCookie
-		}
-		parts[0] = textproto.TrimString(parts[0])
-		name, value, ok := strings.Cut(parts[0], "=")
-		if !ok {
+	}
+	parts[0] = textproto.TrimString(parts[0])
+	name, value, ok := strings.Cut(parts[0], "=")
+	if !ok {
 		return nil, errEqualNotFoundInCookie
-		}
-		name = textproto.TrimString(name)
-		if !isCookieNameValid(name) {
+	}
+	name = textproto.TrimString(name)
+	if !isCookieNameValid(name) {
 		return nil, errInvalidCookieName
-		}
+	}
 	value, quoted, ok := parseCookieValue(value, true)
-		if !ok {
+	if !ok {
 		return nil, errInvalidCookieValue
-		}
-		c := &Cookie{
+	}
+	c := &Cookie{
 		Name:   name,
 		Value:  value,
 		Quoted: quoted,
 		Raw:    line,
+	}
+	for i := 1; i < len(parts); i++ {
+		parts[i] = textproto.TrimString(parts[i])
+		if len(parts[i]) == 0 {
+			continue
 		}
-		for i := 1; i < len(parts); i++ {
-			parts[i] = textproto.TrimString(parts[i])
-			if len(parts[i]) == 0 {
-				continue
-			}
 
-			attr, val, _ := strings.Cut(parts[i], "=")
-			lowerAttr, isASCII := ascii.ToLower(attr)
-			if !isASCII {
-				continue
-			}
+		attr, val, _ := strings.Cut(parts[i], "=")
+		lowerAttr, isASCII := ascii.ToLower(attr)
+		if !isASCII {
+			continue
+		}
 		val, _, ok = parseCookieValue(val, false)
-			if !ok {
-				c.Unparsed = append(c.Unparsed, parts[i])
+		if !ok {
+			c.Unparsed = append(c.Unparsed, parts[i])
+			continue
+		}
+
+		switch lowerAttr {
+		case "samesite":
+			lowerVal, ascii := ascii.ToLower(val)
+			if !ascii {
+				c.SameSite = SameSiteDefaultMode
 				continue
 			}
-
-			switch lowerAttr {
-			case "samesite":
-				lowerVal, ascii := ascii.ToLower(val)
-				if !ascii {
-					c.SameSite = SameSiteDefaultMode
-					continue
-				}
-				switch lowerVal {
-				case "lax":
-					c.SameSite = SameSiteLaxMode
-				case "strict":
-					c.SameSite = SameSiteStrictMode
-				case "none":
-					c.SameSite = SameSiteNoneMode
-				default:
-					c.SameSite = SameSiteDefaultMode
-				}
-				continue
-			case "secure":
-				c.Secure = true
-				continue
-			case "httponly":
-				c.HttpOnly = true
-				continue
-			case "domain":
-				c.Domain = val
-				continue
-			case "max-age":
-				secs, err := strconv.Atoi(val)
-				if err != nil || secs != 0 && val[0] == '0' {
+			switch lowerVal {
+			case "lax":
+				c.SameSite = SameSiteLaxMode
+			case "strict":
+				c.SameSite = SameSiteStrictMode
+			case "none":
+				c.SameSite = SameSiteNoneMode
+			default:
+				c.SameSite = SameSiteDefaultMode
+			}
+			continue
+		case "secure":
+			c.Secure = true
+			continue
+		case "httponly":
+			c.HttpOnly = true
+			continue
+		case "domain":
+			c.Domain = val
+			continue
+		case "max-age":
+			secs, err := strconv.Atoi(val)
+			if err != nil || secs != 0 && val[0] == '0' {
+				break
+			}
+			if secs <= 0 {
+				secs = -1
+			}
+			c.MaxAge = secs
+			continue
+		case "expires":
+			c.RawExpires = val
+			exptime, err := time.Parse(time.RFC1123, val)
+			if err != nil {
+				exptime, err = time.Parse("Mon, 02-Jan-2006 15:04:05 MST", val)
+				if err != nil {
+					c.Expires = time.Time{}
 					break
 				}
-				if secs <= 0 {
-					secs = -1
-				}
-				c.MaxAge = secs
-				continue
-			case "expires":
-				c.RawExpires = val
-				exptime, err := time.Parse(time.RFC1123, val)
-				if err != nil {
-					exptime, err = time.Parse("Mon, 02-Jan-2006 15:04:05 MST", val)
-					if err != nil {
-						c.Expires = time.Time{}
-						break
-					}
-				}
-				c.Expires = exptime.UTC()
-				continue
-			case "path":
-				c.Path = val
-				continue
+			}
+			c.Expires = exptime.UTC()
+			continue
+		case "path":
+			c.Path = val
+			continue
 		case "partitioned":
 			c.Partitioned = true
 			continue
-			}
-			c.Unparsed = append(c.Unparsed, parts[i])
+		}
+		c.Unparsed = append(c.Unparsed, parts[i])
 	}
 	return c, nil
 }

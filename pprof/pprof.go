@@ -83,7 +83,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -400,7 +400,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Adding other profiles exposed from within this package
-	for _, p := range []string{"cmdline", "profile", "trace"} {
+	for _, p := range []string{"cmdline", "profile", "symbol", "trace"} {
 		profiles = append(profiles, profileEntry{
 			Name: p,
 			Href: p,
@@ -408,8 +408,8 @@ func Index(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	sort.Slice(profiles, func(i, j int) bool {
-		return profiles[i].Name < profiles[j].Name
+	slices.SortFunc(profiles, func(a, b profileEntry) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 
 	if err := indexTmplExecute(w, profiles); err != nil {
