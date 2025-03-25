@@ -38,14 +38,14 @@ func TestContentLength(t *testing.T) {
 
 	req, err := http.NewRequest("POST", ts.URL, strings.NewReader(form.Encode()))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	req.Header.Add("user-agent", "Go Testing")
 
 	resp, err := ts.Client().Do(req)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	resp.Body.Close()
@@ -56,10 +56,10 @@ func TestClient_SendsCookies(t *testing.T) {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("cookie")
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 		if cookie.Value == "" {
-			t.Fatalf("Cookie value is empty")
+			t.Fatal("Cookie value is empty")
 		}
 	}))
 
@@ -70,7 +70,7 @@ func TestClient_SendsCookies(t *testing.T) {
 
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	c := ts.Client()
@@ -80,7 +80,7 @@ func TestClient_SendsCookies(t *testing.T) {
 
 	u, err := url.Parse(ur)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	cookies := []*http.Cookie{{Name: "cookie", Value: "Hello world"}}
@@ -88,7 +88,7 @@ func TestClient_SendsCookies(t *testing.T) {
 
 	resp, err := c.Get(ur)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	resp.Body.Close()

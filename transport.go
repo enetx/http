@@ -77,8 +77,7 @@ const DefaultMaxIdleConnsPerHost = 2
 // Transport uses HTTP/1.1 for HTTP URLs and either HTTP/1.1 or HTTP/2
 // for HTTPS URLs, depending on whether the server supports HTTP/2,
 // and how the Transport is configured. The [DefaultTransport] supports HTTP/2.
-// To explicitly enable HTTP/2 on a transport, use golang.org/x/net/http2
-// and call ConfigureTransport. See the package docs for more about HTTP/2.
+// To explicitly enable HTTP/2 on a transport, set [Transport.Protocols].
 //
 // Responses with status codes in the 1xx range are either handled
 // automatically (100 expect-continue) or ignored. The one
