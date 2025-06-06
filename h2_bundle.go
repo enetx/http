@@ -1608,7 +1608,7 @@ const (
 	http2FrameContinuation http2FrameType = 0x9
 )
 
-var http2frameName = map[http2FrameType]string{
+var http2frameNames = [...]string{
 	http2FrameData:         "DATA",
 	http2FrameHeaders:      "HEADERS",
 	http2FramePriority:     "PRIORITY",
@@ -1622,10 +1622,10 @@ var http2frameName = map[http2FrameType]string{
 }
 
 func (t http2FrameType) String() string {
-	if s, ok := http2frameName[t]; ok {
-		return s
+	if int(t) < len(http2frameNames) {
+		return http2frameNames[t]
 	}
-	return fmt.Sprintf("UNKNOWN_FRAME_TYPE_%d", uint8(t))
+	return fmt.Sprintf("UNKNOWN_FRAME_TYPE_%d", t)
 }
 
 // Flags is a bitmask of HTTP/2 flags.
@@ -1693,7 +1693,7 @@ var http2flagName = map[http2FrameType]map[http2Flags]string{
 // might be 0).
 type http2frameParser func(fc *http2frameCache, fh http2FrameHeader, countError func(string), payload []byte) (http2Frame, error)
 
-var http2frameParsers = map[http2FrameType]http2frameParser{
+var http2frameParsers = [...]http2frameParser{
 	http2FrameData:         http2parseDataFrame,
 	http2FrameHeaders:      http2parseHeadersFrame,
 	http2FramePriority:     http2parsePriorityFrame,
@@ -1707,8 +1707,8 @@ var http2frameParsers = map[http2FrameType]http2frameParser{
 }
 
 func http2typeFrameParser(t http2FrameType) http2frameParser {
-	if f := http2frameParsers[t]; f != nil {
-		return f
+	if int(t) < len(http2frameParsers) {
+		return http2frameParsers[t]
 	}
 	return http2parseUnknownFrame
 }
@@ -1792,6 +1792,11 @@ var http2fhBytes = sync.Pool{
 		buf := make([]byte, http2frameHeaderLen)
 		return &buf
 	},
+}
+
+func http2invalidHTTP1LookingFrameHeader() http2FrameHeader {
+	fh, _ := http2readFrameHeader(make([]byte, http2frameHeaderLen), strings.NewReader("HTTP/1.1 "))
+	return fh
 }
 
 // ReadFrameHeader reads 9 bytes from r and returns a FrameHeader.
@@ -2075,10 +2080,16 @@ func (fr *http2Framer) ReadFrame() (http2Frame, error) {
 		return nil, err
 	}
 	if fh.Length > fr.maxReadSize {
+		if fh == http2invalidHTTP1LookingFrameHeader() {
+			return nil, fmt.Errorf("http2: failed reading the frame payload: %w, note that the frame header looked like an HTTP/1.1 header", http2ErrFrameTooLarge)
+		}
 		return nil, http2ErrFrameTooLarge
 	}
 	payload := fr.getReadBuf(fh.Length)
 	if _, err := io.ReadFull(fr.r, payload); err != nil {
+		if fh == http2invalidHTTP1LookingFrameHeader() {
+			return nil, fmt.Errorf("http2: failed reading the frame payload: %w, note that the frame header looked like an HTTP/1.1 header", err)
+		}
 		return nil, err
 	}
 	f, err := http2typeFrameParser(fh.Type)(fr.frameCache, fh, fr.countError, payload)
@@ -3466,7 +3477,9 @@ const (
 	http2defaultMaxReadFrameSize = 1 << 20
 )
 
-var http2clientPreface = []byte(http2ClientPreface)
+var (
+	http2clientPreface = []byte(http2ClientPreface)
+)
 
 type http2streamState int
 
@@ -3701,11 +3714,7 @@ func (w *http2bufferedWriterTimeoutWriter) Write(p []byte) (n int, err error) {
 // writeWithByteTimeout writes to conn.
 // If more than timeout passes without any bytes being written to the connection,
 // the write fails.
-func http2writeWithByteTimeout(
-	group http2synctestGroupInterface, conn net.Conn,
-	timeout time.Duration,
-	p []byte,
-) (n int, err error) {
+func http2writeWithByteTimeout(group http2synctestGroupInterface, conn net.Conn, timeout time.Duration, p []byte) (n int, err error) {
 	if timeout <= 0 {
 		return conn.Write(p)
 	}
@@ -5009,7 +5018,10 @@ func (sc *http2serverConn) serve(conf http2http2Config) {
 
 func (sc *http2serverConn) handlePingTimer(lastFrameReadTime time.Time) {
 	if sc.pingSent {
-		sc.vlogf("timeout waiting for PING response")
+		sc.logf("timeout waiting for PING response")
+		if f := sc.countErrorFunc; f != nil {
+			f("conn_close_lost_ping")
+		}
 		sc.conn.Close()
 		return
 	}
@@ -7869,7 +7881,7 @@ func (t *http2Transport) RoundTrip(req *Request) (*Response, error) {
 
 // authorityAddr returns a given authority (a host/IP, or host:port / ip:port)
 // and returns a host:port. The port 443 is added if needed.
-func http2authorityAddr(scheme, authority string) (addr string) {
+func http2authorityAddr(scheme string, authority string) (addr string) {
 	host, port, err := net.SplitHostPort(authority)
 	if err != nil { // authority didn't have a port
 		host = authority
@@ -8009,10 +8021,7 @@ func http2shouldRetryRequest(req *Request, err error) (*Request, error) {
 		return req, nil
 	}
 
-	return nil, fmt.Errorf(
-		"http2: Transport: cannot retry err [%v] after Request.Body was written; define Request.GetBody to avoid this error",
-		err,
-	)
+	return nil, fmt.Errorf("http2: Transport: cannot retry err [%v] after Request.Body was written; define Request.GetBody to avoid this error", err)
 }
 
 func http2canRetryError(err error) bool {
@@ -8267,9 +8276,7 @@ func (cc *http2ClientConn) setGoAway(f *http2GoAwayFrame) {
 			// Don't retry the first stream on a connection if we get a non-NO error.
 			// If the server is sending an error on a new connection,
 			// retrying the request on a new one probably isn't going to work.
-			cs.abortStreamLocked(
-				fmt.Errorf("http2: Transport received GOAWAY from server ErrCode:%v", cc.goAway.ErrCode),
-			)
+			cs.abortStreamLocked(fmt.Errorf("http2: Transport received GOAWAY from server ErrCode:%v", cc.goAway.ErrCode))
 		} else {
 			// Aborting the stream with errClentConnGotGoAway indicates that
 			// the request should be retried on a new connection.
@@ -8932,12 +8939,7 @@ func (cs *http2clientStream) encodeAndWriteHeaders(req *Request) error {
 	return err
 }
 
-func http2encodeRequestHeaders(
-	req *Request,
-	addGzipHeader bool,
-	peerMaxHeaderListSize uint64,
-	headerf func(name, value string),
-) (httpcommon.EncodeHeadersResult, error) {
+func http2encodeRequestHeaders(req *Request, addGzipHeader bool, peerMaxHeaderListSize uint64, headerf func(name, value string)) (httpcommon.EncodeHeadersResult, error) {
 	return httpcommon.EncodeHeaders(req.Context(), httpcommon.EncodeHeadersParam{
 		Request: httpcommon.Request{
 			Header:              httpcommon.Header(req.Header),
@@ -9329,6 +9331,7 @@ func (cs *http2clientStream) awaitFlowControl(maxBytes int) (taken int32, err er
 		if a := cs.flow.available(); a > 0 {
 			take := a
 			if int(take) > maxBytes {
+
 				take = int32(maxBytes) // can't truncate int; take is int32
 			}
 			if take > int32(cc.maxFrameSize) {
@@ -9417,12 +9420,7 @@ func (cc *http2ClientConn) forgetStreamID(id uint32) {
 	closeOnIdle := cc.singleUse || cc.doNotReuse || cc.t.disableKeepAlives() || cc.goAway != nil
 	if closeOnIdle && cc.streamsReserved == 0 && len(cc.streams) == 0 {
 		if http2VerboseLogs {
-			cc.vlogf(
-				"http2: Transport closing idle conn %p (forSingleUse=%v, maxStream=%v)",
-				cc,
-				cc.singleUse,
-				cc.nextStreamID-2,
-			)
+			cc.vlogf("http2: Transport closing idle conn %p (forSingleUse=%v, maxStream=%v)", cc, cc.singleUse, cc.nextStreamID-2)
 		}
 		cc.closed = true
 		defer cc.closeConn()
@@ -9625,12 +9623,7 @@ func (rl *http2clientConnReadLoop) run() error {
 		}
 		if err != nil {
 			if http2VerboseLogs {
-				cc.vlogf(
-					"http2: Transport conn %p received error from processing frame %v: %v",
-					cc,
-					http2summarizeFrame(f),
-					err,
-				)
+				cc.vlogf("http2: Transport conn %p received error from processing frame %v: %v", cc, http2summarizeFrame(f), err)
 			}
 			return err
 		}
