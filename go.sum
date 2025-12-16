@@ -1,0 +1,8 @@
+github.com/enetx/http v1.0.19 h1:4W97CyqKrPiR16wEm6UOesqNrt8l4RsVMjZHz6+I84E=
+github.com/enetx/http v1.0.19/go.mod h1:1f4mytfF/SfjATEJnynpwGS6aa1ALjb8DtmYgFVblY0=
+github.com/enetx/http2 v1.0.20 h1:181A9wyzQOxvj+LqIJ/oGGx6Vl0Ry1wTLOfX+zTnaS0=
+github.com/enetx/http2 v1.0.20/go.mod h1:t54ex5HIS8V1+2j6cvEOv6umlrHsbUPFKQ54nYB58Nk=
+golang.org/x/net v0.48.0 h1:zyQRTTrjc33Lhh0fBgT/H3oZq9WuvRR5gPC70xpDiQU=
+golang.org/x/net v0.48.0/go.mod h1:+ndRgGjkh8FGtu1w1FGbEC31if4VrNVMuKTgcAAnQRY=
+golang.org/x/text v0.32.0 h1:ZD01bjUt1FQ9WJ0ClOL5vxgxOI/sVCNgX1YtKwcY0mU=
+golang.org/x/text v0.32.0/go.mod h1:o/rUWzghvpD5TXrTIBuJU77MTaN0ljMWE47kxGJQ7jY=

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enetx/http/internal/ascii"
+	"github.com/aarock1234/http/internal/ascii"
 )
 
 // A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
@@ -470,7 +470,8 @@ func sanitizeCookieValue(v string, quoted bool) string {
 }
 
 func validCookieValueByte(b byte) bool {
-	return 0x20 <= b && b < 0x7f && b != '"' && b != ';' && b != '\\'
+	// allow double quotes in cookie value
+	return 0x20 <= b && b < 0x7f && /* b != '"' && */ b != ';' && b != '\\'
 }
 
 // path-av           = "Path=" path-value

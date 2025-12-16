@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/textproto"
-    "maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aarock1234/http/internal"
+	"github.com/aarock1234/http/internal/ascii"
 	"github.com/enetx/http/httptrace"
-	"github.com/enetx/http/internal"
-	"github.com/enetx/http/internal/ascii"
 
 	"golang.org/x/net/http/httpguts"
 )

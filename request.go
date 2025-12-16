@@ -26,8 +26,8 @@ import (
 	"sync"
 	_ "unsafe" // for linkname
 
+	"github.com/aarock1234/http/internal/ascii"
 	"github.com/enetx/http/httptrace"
-	"github.com/enetx/http/internal/ascii"
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"

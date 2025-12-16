@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enetx/http/internal/lazyregexp"
+	"github.com/aarock1234/http/internal/lazyregexp"
 )
 
 // Profile is an in-memory representation of profile.proto.
