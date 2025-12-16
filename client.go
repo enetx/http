@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aarock1234/http/internal/ascii"
+	"github.com/enetx/http/internal/ascii"
 )
 
 // A Client is an HTTP client. Its zero value ([DefaultClient]) is a

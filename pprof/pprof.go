@@ -88,8 +88,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aarock1234/http"
-	"github.com/aarock1234/http/internal/profile"
+	"github.com/enetx/http"
+	"github.com/enetx/http/internal/profile"
 )
 
 func init() {

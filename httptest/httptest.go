@@ -13,7 +13,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/aarock1234/http"
+	"github.com/enetx/http"
 )
 
 // NewRequest wraps NewRequestWithContext using context.Background.

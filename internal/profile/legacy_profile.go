@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aarock1234/http/internal/lazyregexp"
+	"github.com/enetx/http/internal/lazyregexp"
 )
 
 var (
