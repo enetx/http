@@ -12,7 +12,7 @@ import (
 	"net/textproto"
 	"sync"
 
-	"github.com/enetx/http"
+	"github.com/aarock1234/http"
 )
 
 var (

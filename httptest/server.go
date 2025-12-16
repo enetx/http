@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aarock1234/http"
 	"github.com/aarock1234/http/internal/testcert"
-	"github.com/enetx/http"
 )
 
 // A Server is an HTTP server listening on a system-chosen port on the
