@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/textproto"
-    "maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -289,14 +289,19 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 	// function of the sanitized field triple (Body, ContentLength,
 	// TransferEncoding)
 	if t.shouldSendContentLength() {
-		if _, err := io.WriteString(w, "Content-Length: "); err != nil {
-			return err
-		}
-		if _, err := io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n"); err != nil {
-			return err
-		}
-		if trace != nil && trace.WroteHeaderField != nil {
-			trace.WroteHeaderField("Content-Length", []string{strconv.FormatInt(t.ContentLength, 10)})
+		headers, hoexist := t.Header[HeaderOrderKey]
+		clexit := slices.Contains(headers, "content-length")
+
+		if !hoexist || !clexit {
+			if _, err := io.WriteString(w, "Content-Length: "); err != nil {
+				return err
+			}
+			if _, err := io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n"); err != nil {
+				return err
+			}
+			if trace != nil && trace.WroteHeaderField != nil {
+				trace.WroteHeaderField("Content-Length", []string{strconv.FormatInt(t.ContentLength, 10)})
+			}
 		}
 	} else if chunked(t.TransferEncoding) {
 		if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
@@ -352,7 +357,7 @@ func (t *transferWriter) writeBody(w io.Writer) (err error) {
 	// OS-level optimizations in the event that the body is an
 	// *os.File.
 	if !t.ResponseToHEAD && t.Body != nil {
-		var body = t.unwrapBody()
+		body := t.unwrapBody()
 		if chunked(t.TransferEncoding) {
 			if bw, ok := w.(*bufio.Writer); ok && !t.IsResponse {
 				w = &internal.FlushAfterChunkWriter{Writer: bw}
@@ -396,7 +401,7 @@ func (t *transferWriter) writeBody(w io.Writer) (err error) {
 	if !t.ResponseToHEAD && chunked(t.TransferEncoding) {
 		// Write Trailer header
 		if t.Trailer != nil {
-			if err := t.Trailer.Write(w); err != nil {
+			if err := t.Trailer.Write(w, t.ContentLength); err != nil {
 				return err
 			}
 		}
@@ -418,7 +423,7 @@ func (t *transferWriter) doBodyCopy(dst io.Writer, src io.Reader) (n int64, err 
 	if err != nil && err != io.EOF {
 		t.bodyReadError = err
 	}
-	return
+	return n, err
 }
 
 // unwrapBody unwraps the body's inner reader if it's a
@@ -1071,7 +1076,7 @@ type finishAsyncByteRead struct {
 
 func (fr finishAsyncByteRead) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
-		return
+		return n, err
 	}
 	rres := <-fr.tw.ByteReadCh
 	n, err = rres.n, rres.err
@@ -1081,14 +1086,16 @@ func (fr finishAsyncByteRead) Read(p []byte) (n int, err error) {
 	if err == nil {
 		err = io.EOF
 	}
-	return
+	return n, err
 }
 
-var nopCloserType = reflect.TypeOf(io.NopCloser(nil))
-var nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
-	io.Reader
-	io.WriterTo
-}{}))
+var (
+	nopCloserType         = reflect.TypeOf(io.NopCloser(nil))
+	nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
+		io.Reader
+		io.WriterTo
+	}{}))
+)
 
 // unwrapNopCloser return the underlying reader and true if r is a NopCloser
 // else it return false.
@@ -1130,5 +1137,5 @@ func (fw bufioFlushWriter) Write(p []byte) (n int, err error) {
 			err = ferr
 		}
 	}
-	return
+	return n, err
 }
