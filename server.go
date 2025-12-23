@@ -332,7 +332,7 @@ func (c *conn) hijackLocked() (rwc net.Conn, buf *bufio.ReadWriter, err error) {
 	buf = bufio.NewReadWriter(c.bufr, c.bufw)
 
 	c.setState(rwc, StateHijacked, runHooks)
-	return
+	return rwc, buf, err
 }
 
 // This should be >= 512 bytes for DetectContentType,
@@ -384,7 +384,7 @@ func (cw *chunkWriter) Write(p []byte) (n int, err error) {
 		_, err = fmt.Fprintf(cw.res.conn.bufw, "%x\r\n", len(p))
 		if err != nil {
 			cw.res.conn.rwc.Close()
-			return
+			return n, err
 		}
 	}
 	n, err = cw.res.conn.bufw.Write(p)
@@ -394,7 +394,7 @@ func (cw *chunkWriter) Write(p []byte) (n int, err error) {
 	if err != nil {
 		cw.res.conn.rwc.Close()
 	}
-	return
+	return n, err
 }
 
 func (cw *chunkWriter) flush() error {
@@ -413,7 +413,7 @@ func (cw *chunkWriter) close() {
 		// zero chunk to mark EOF
 		bw.WriteString("0\r\n")
 		if trailers := cw.res.finalTrailers(); trailers != nil {
-			trailers.Write(bw) // the writer handles noting errors
+			trailers.Write(bw, -1) // the writer handles noting errors
 		}
 		// final blank line after the trailers (whether
 		// present or not)
@@ -991,7 +991,7 @@ func (ecr *expectContinueReader) Read(p []byte) (n int, err error) {
 	if err == io.EOF {
 		ecr.sawEOF.Store(true)
 	}
-	return
+	return n, err
 }
 
 func (ecr *expectContinueReader) Close() error {
@@ -1215,7 +1215,7 @@ func (w *response) WriteHeader(code int) {
 		writeStatusLine(w.conn.bufw, w.req.ProtoAtLeast(1, 1), code, w.statusBuf[:])
 
 		// Per RFC 8297 we must not clear the current header map
-		w.handlerHeader.WriteSubset(w.conn.bufw, excludedHeadersNoBody)
+		w.handlerHeader.WriteSubset(w.conn.bufw, excludedHeadersNoBody, -1)
 		w.conn.bufw.Write(crlf)
 		w.conn.bufw.Flush()
 
@@ -1572,7 +1572,8 @@ func (cw *chunkWriter) writeHeader(p []byte) {
 	}
 
 	writeStatusLine(w.conn.bufw, w.req.ProtoAtLeast(1, 1), code, w.statusBuf[:])
-	cw.header.WriteSubset(w.conn.bufw, excludeHeader)
+
+	cw.header.WriteSubset(w.conn.bufw, excludeHeader, -1)
 	setHeader.Write(w.conn.bufw)
 	w.conn.bufw.Write(crlf)
 }
@@ -4044,21 +4045,21 @@ func (c *loggingConn) Write(p []byte) (n int, err error) {
 	log.Printf("%s.Write(%d) = ....", c.name, len(p))
 	n, err = c.Conn.Write(p)
 	log.Printf("%s.Write(%d) = %d, %v", c.name, len(p), n, err)
-	return
+	return n, err
 }
 
 func (c *loggingConn) Read(p []byte) (n int, err error) {
 	log.Printf("%s.Read(%d) = ....", c.name, len(p))
 	n, err = c.Conn.Read(p)
 	log.Printf("%s.Read(%d) = %d, %v", c.name, len(p), n, err)
-	return
+	return n, err
 }
 
 func (c *loggingConn) Close() (err error) {
 	log.Printf("%s.Close() = ...", c.name)
 	err = c.Conn.Close()
 	log.Printf("%s.Close() = %v", c.name, err)
-	return
+	return err
 }
 
 // checkConnErrorWriter writes to c.rwc and records any write errors to c.werr.
@@ -4074,7 +4075,7 @@ func (w checkConnErrorWriter) Write(p []byte) (n int, err error) {
 		w.c.werr = err
 		w.c.cancelCtx()
 	}
-	return
+	return n, err
 }
 
 func numLeadingCRorLF(v []byte) (n int) {
@@ -4085,7 +4086,7 @@ func numLeadingCRorLF(v []byte) (n int) {
 		}
 		break
 	}
-	return
+	return n
 }
 
 // EnableHeaderOrder set the option to enable the ResponseWriter to use the

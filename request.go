@@ -710,13 +710,13 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 		return err
 	}
 
-	err = r.Header.writeSubset(w, reqWriteExcludeHeader, trace)
+	err = r.Header.writeSubset(w, reqWriteExcludeHeader, trace, tw.ContentLength)
 	if err != nil {
 		return err
 	}
 
 	if extraHeaders != nil {
-		err = extraHeaders.write(w, trace)
+		err = extraHeaders.write(w, trace, tw.ContentLength)
 		if err != nil {
 			return err
 		}
@@ -1261,7 +1261,7 @@ func copyValues(dst, src url.Values) {
 func parsePostForm(r *Request) (vs url.Values, err error) {
 	if r.Body == nil {
 		err = errors.New("missing form body")
-		return
+		return vs, err
 	}
 	ct := r.Header.Get("Content-Type")
 	// RFC 7231, section 3.1.1.5 - empty type
@@ -1287,7 +1287,7 @@ func parsePostForm(r *Request) (vs url.Values, err error) {
 		}
 		if int64(len(b)) > maxFormSize {
 			err = errors.New("http: POST too large")
-			return
+			return vs, err
 		}
 		vs, e = url.ParseQuery(string(b))
 		if err == nil {
@@ -1301,7 +1301,7 @@ func parsePostForm(r *Request) (vs url.Values, err error) {
 		// request_test.go contains the start of this,
 		// in TestParseMultipartFormOrder and others.
 	}
-	return
+	return vs, err
 }
 
 // ParseForm populates r.Form and r.PostForm.
