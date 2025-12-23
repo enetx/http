@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/textproto"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
