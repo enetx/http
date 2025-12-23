@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -464,7 +465,7 @@ func sanitizeCookieValue(v string, quoted bool) string {
 		return v
 	}
 	if strings.ContainsAny(v, " ,") || quoted {
-		return `"` + v + `"`
+		return `"` + url.QueryEscape(v) + `"`
 	}
 	return v
 }

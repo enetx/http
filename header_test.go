@@ -139,7 +139,7 @@ var headerWriteTests = []struct {
 func TestHeaderWrite(t *testing.T) {
 	var buf bytes.Buffer
 	for i, test := range headerWriteTests {
-		test.h.WriteSubset(&buf, test.exclude)
+		test.h.WriteSubset(&buf, test.exclude, 0)
 		if buf.String() != test.expected {
 			t.Errorf("#%d:\n got: %q\nwant: %q", i, buf.String(), test.expected)
 		}
