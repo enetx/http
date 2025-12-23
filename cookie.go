@@ -465,7 +465,7 @@ func sanitizeCookieValue(v string, quoted bool) string {
 		return v
 	}
 	if strings.ContainsAny(v, " ,") || quoted {
-		return `"` + url.QueryEscape(v) + `"`
+		return `"` + v + `"`
 	}
 	return v
 }
