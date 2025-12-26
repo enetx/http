@@ -290,9 +290,9 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 	// TransferEncoding)
 	if t.shouldSendContentLength() {
 		headers, hoexist := t.Header[HeaderOrderKey]
-		clexit := slices.Contains(headers, "content-length")
+		clexist := slices.Contains(headers, "content-length")
 
-		if !hoexist || !clexit {
+		if !hoexist || !clexist {
 			if _, err := io.WriteString(w, "Content-Length: "); err != nil {
 				return err
 			}

@@ -7451,6 +7451,7 @@ type http2Transport struct {
 	// Settings should not include InitialWindowSize or HeaderTableSize, set that in Transport
 	Settings []http2Setting
 
+	StreamID       uint32
 	ConnectionFlow uint32
 	PriorityParam  http2PriorityParam
 	PriorityFrames []http2PriorityFrame
@@ -7819,7 +7820,7 @@ func (t *http2Transport) RoundTrip(req *Request) (*Response, error) {
 
 // authorityAddr returns a given authority (a host/IP, or host:port / ip:port)
 // and returns a host:port. The port 443 is added if needed.
-func http2authorityAddr(scheme string, authority string) (addr string) {
+func http2authorityAddr(scheme, authority string) (addr string) {
 	host, port, err := net.SplitHostPort(authority)
 	if err != nil { // authority didn't have a port
 		host = authority
@@ -8067,6 +8068,11 @@ func (t *http2Transport) newClientConn(c net.Conn, singleUse bool) (*http2Client
 		reqHeaderMu:                 make(chan struct{}, 1),
 		lastActive:                  time.Now(),
 	}
+
+	if t.StreamID != 0 {
+		cc.nextStreamID = t.StreamID
+	}
+
 	if t.http2transportTestHooks != nil {
 		t.http2transportTestHooks.newclientconn(cc)
 		c = cc.tconn
@@ -8314,7 +8320,7 @@ func (cc *http2ClientConn) idleState() http2clientConnIdleState {
 
 func (cc *http2ClientConn) idleStateLocked() (st http2clientConnIdleState) {
 	if cc.singleUse && cc.nextStreamID > 1 {
-		return
+		return st
 	}
 	var maxConcurrentOkay bool
 	if cc.strictMaxConcurrentStreams {
@@ -8349,7 +8355,7 @@ func (cc *http2ClientConn) idleStateLocked() (st http2clientConnIdleState) {
 		st.canTakeNewRequest = true
 	}
 
-	return
+	return st
 }
 
 // currentRequestCountLocked reports the number of concurrency slots currently in use,
@@ -9264,7 +9270,6 @@ func (cs *http2clientStream) awaitFlowControl(maxBytes int) (taken int32, err er
 		if a := cs.flow.available(); a > 0 {
 			take := a
 			if int(take) > maxBytes {
-
 				take = int32(maxBytes) // can't truncate int; take is int32
 			}
 			if take > int32(cc.maxFrameSize) {
@@ -9825,7 +9830,7 @@ func (b http2transportResponseBody) Read(p []byte) (n int, err error) {
 	}
 	if n == 0 {
 		// No flow control tokens to send back.
-		return
+		return n, err
 	}
 
 	cc.mu.Lock()
@@ -9847,7 +9852,7 @@ func (b http2transportResponseBody) Read(p []byte) (n int, err error) {
 		}
 		cc.bw.Flush()
 	}
-	return
+	return n, err
 }
 
 var http2errClosedResponseBody = errors.New("http2: response body closed")
