@@ -150,10 +150,10 @@ func ParseTime(text string) (t time.Time, err error) {
 	for _, layout := range timeFormats {
 		t, err = time.Parse(layout, text)
 		if err == nil {
-			return t, err
+			return
 		}
 	}
-	return t, err
+	return
 }
 
 var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")

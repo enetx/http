@@ -357,7 +357,7 @@ func (t *transferWriter) writeBody(w io.Writer) (err error) {
 	// OS-level optimizations in the event that the body is an
 	// *os.File.
 	if !t.ResponseToHEAD && t.Body != nil {
-		body := t.unwrapBody()
+		var body = t.unwrapBody()
 		if chunked(t.TransferEncoding) {
 			if bw, ok := w.(*bufio.Writer); ok && !t.IsResponse {
 				w = &internal.FlushAfterChunkWriter{Writer: bw}
@@ -423,7 +423,7 @@ func (t *transferWriter) doBodyCopy(dst io.Writer, src io.Reader) (n int64, err 
 	if err != nil && err != io.EOF {
 		t.bodyReadError = err
 	}
-	return n, err
+	return
 }
 
 // unwrapBody unwraps the body's inner reader if it's a
@@ -1076,7 +1076,7 @@ type finishAsyncByteRead struct {
 
 func (fr finishAsyncByteRead) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
-		return n, err
+		return
 	}
 	rres := <-fr.tw.ByteReadCh
 	n, err = rres.n, rres.err
@@ -1086,16 +1086,14 @@ func (fr finishAsyncByteRead) Read(p []byte) (n int, err error) {
 	if err == nil {
 		err = io.EOF
 	}
-	return n, err
+	return
 }
 
-var (
-	nopCloserType         = reflect.TypeOf(io.NopCloser(nil))
-	nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
+var nopCloserType = reflect.TypeOf(io.NopCloser(nil))
+var nopCloserWriterToType = reflect.TypeOf(io.NopCloser(struct {
 		io.Reader
 		io.WriterTo
 	}{}))
-)
 
 // unwrapNopCloser return the underlying reader and true if r is a NopCloser
 // else it return false.
@@ -1137,5 +1135,5 @@ func (fw bufioFlushWriter) Write(p []byte) (n int, err error) {
 			err = ferr
 		}
 	}
-	return n, err
+	return
 }
