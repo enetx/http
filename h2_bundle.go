@@ -3619,6 +3619,7 @@ const (
 	http2SettingMaxFrameSize          http2SettingID = 0x5
 	http2SettingMaxHeaderListSize     http2SettingID = 0x6
 	http2SettingEnableConnectProtocol http2SettingID = 0x8
+	http2SettingNoRFC7540Priorities   http2SettingID = 0x9
 )
 
 var http2settingName = map[http2SettingID]string{
@@ -3629,6 +3630,7 @@ var http2settingName = map[http2SettingID]string{
 	http2SettingMaxFrameSize:          "MAX_FRAME_SIZE",
 	http2SettingMaxHeaderListSize:     "MAX_HEADER_LIST_SIZE",
 	http2SettingEnableConnectProtocol: "ENABLE_CONNECT_PROTOCOL",
+	http2SettingNoRFC7540Priorities:   "NO_RFC7540_PRIORITIES",
 }
 
 func (s http2SettingID) String() string {
