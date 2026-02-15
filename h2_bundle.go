@@ -1718,7 +1718,7 @@ var http2frameParsers = [...]http2frameParser{
 }
 
 func http2typeFrameParser(t http2FrameType) http2frameParser {
-	if int(t) < len(http2frameParsers) {
+	if int(t) < len(http2frameParsers) && http2frameParsers[t] != nil {
 		return http2frameParsers[t]
 	}
 	return http2parseUnknownFrame
