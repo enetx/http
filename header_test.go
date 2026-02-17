@@ -79,9 +79,7 @@ var headerWriteTests = []struct {
 			"k9": {"9a", "9b"},
 		},
 		map[string]bool{"k5": true},
-		"k1: 1a\r\nk1: 1b\r\nk2: 2a\r\nk2: 2b\r\nk3: 3a\r\nk3: 3b\r\n" +
-			"k4: 4a\r\nk4: 4b\r\nk6: 6a\r\nk6: 6b\r\n" +
-			"k7: 7a\r\nk7: 7b\r\nk8: 8a\r\nk8: 8b\r\nk9: 9a\r\nk9: 9b\r\n",
+		"K1: 1a\r\nK1: 1b\r\nK2: 2a\r\nK2: 2b\r\nK3: 3a\r\nK3: 3b\r\nK4: 4a\r\nK4: 4b\r\nK6: 6a\r\nK6: 6b\r\nK7: 7a\r\nK7: 7b\r\nK8: 8a\r\nK8: 8b\r\nK9: 9a\r\nK9: 9b\r\n",
 	},
 	// Test sorting headers by the special Header-Order header
 	{
@@ -94,7 +92,7 @@ var headerWriteTests = []struct {
 			http.HeaderOrderKey: {"e", "a", "b", "d", "c"},
 		},
 		nil,
-		"e: 1\r\na: 2\r\nb: 3\r\nd: 4\r\nc: 5\r\n",
+		"E: 1\r\nA: 2\r\nB: 3\r\nD: 4\r\nC: 5\r\n",
 	},
 	{
 		http.Header{
@@ -128,18 +126,14 @@ var headerWriteTests = []struct {
 			},
 		},
 		nil,
-		"X-NewRelic-ID: 12345\r\nx-api-key: ABCDEFGHIJKLMNOPQRSTUVWXYZ\r\nMESH-Commerce-Channel: android-app-phone\r\n" +
-			"mesh-version: cart=4\r\nUser-Agent: size/3.1.0.8355 (android-app-phone; Android 10; Build/CPH2185_11_A.28)\r\n" +
-			"X-Request-Auth: hawkHeader\r\nX-acf-sensor-data: 3456\r\nContent-Type: application/json; charset=UTF-8\r\n" +
-			"Accept: application/json\r\nTransfer-Encoding: chunked\r\nHost: prod.jdgroupmesh.cloud\r\nConnection: Keep-Alive\r\n" +
-			"Accept-Encoding: gzip\r\n",
+		"X-Newrelic-Id: 12345\r\nX-Api-Key: ABCDEFGHIJKLMNOPQRSTUVWXYZ\r\nMesh-Commerce-Channel: android-app-phone\r\nMesh-Version: cart=4\r\nUser-Agent: size/3.1.0.8355 (android-app-phone; Android 10; Build/CPH2185_11_A.28)\r\nX-Request-Auth: hawkHeader\r\nX-Acf-Sensor-Data: 3456\r\nContent-Type: application/json; charset=UTF-8\r\nAccept: application/json\r\nTransfer-Encoding: chunked\r\nHost: prod.jdgroupmesh.cloud\r\nConnection: Keep-Alive\r\nAccept-Encoding: gzip\r\n",
 	},
 }
 
 func TestHeaderWrite(t *testing.T) {
 	var buf bytes.Buffer
 	for i, test := range headerWriteTests {
-		test.h.WriteSubset(&buf, test.exclude)
+		test.h.WriteSubset(&buf, test.exclude, -1)
 		if buf.String() != test.expected {
 			t.Errorf("#%d:\n got: %q\nwant: %q", i, buf.String(), test.expected)
 		}

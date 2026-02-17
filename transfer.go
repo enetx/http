@@ -304,11 +304,18 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 			}
 		}
 	} else if chunked(t.TransferEncoding) {
-		if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
-			return err
-		}
-		if trace != nil && trace.WroteHeaderField != nil {
-			trace.WroteHeaderField("Transfer-Encoding", []string{"chunked"})
+		headers, hoexist := t.Header[HeaderOrderKey]
+		texist := slices.Contains(headers, "transfer-encoding")
+
+		if !hoexist || !texist {
+			if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
+				return err
+			}
+			if trace != nil && trace.WroteHeaderField != nil {
+				trace.WroteHeaderField("Transfer-Encoding", []string{"chunked"})
+			}
+		} else {
+			t.Header["transfer-encoding"] = []string{"chunked"}
 		}
 	}
 
