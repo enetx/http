@@ -279,7 +279,7 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 
 			// If content-length is set in the header order,
 			// we should add the value so it gets sorted
-			if v == "content-length" && cl > 0 {
+			if v == "content-length" && cl >= 0 {
 				h[v] = []string{strconv.FormatInt(cl, 10)}
 			}
 		}

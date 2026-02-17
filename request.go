@@ -22,6 +22,7 @@ import (
 	"net/url"
 	urlpkg "net/url"
 	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	_ "unsafe" // for linkname
@@ -677,12 +678,18 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	}
 
 	// Header lines
-	_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
-	if err != nil {
-		return err
-	}
-	if trace != nil && trace.WroteHeaderField != nil {
-		trace.WroteHeaderField("Host", []string{host})
+	// Write Host immediately unless it's in HeaderOrder (will be written in sorted order by writeSubset)
+	headerOrder, hoexist := r.Header[HeaderOrderKey]
+	hostInOrder := hoexist && slices.Contains(headerOrder, "host")
+
+	if !hostInOrder {
+		_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
+		if err != nil {
+			return err
+		}
+		if trace != nil && trace.WroteHeaderField != nil {
+			trace.WroteHeaderField("Host", []string{host})
+		}
 	}
 
 	// Use the defaultUserAgent unless the Header contains one, which
@@ -708,6 +715,11 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	err = tw.writeHeader(w, trace)
 	if err != nil {
 		return err
+	}
+
+	// If host is in HeaderOrder, add its value to headers so writeSubset can write it in order
+	if hostInOrder {
+		r.Header["host"] = []string{host}
 	}
 
 	err = r.Header.writeSubset(w, reqWriteExcludeHeader, trace, tw.ContentLength)
