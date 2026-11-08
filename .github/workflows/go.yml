@@ -1,6 +1,6 @@
 name: Go
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
           go generate ./http2
           git diff --exit-code -- http2/frame_aliases.go
       - name: Test
-        run: go test -race ./...
+        run: go test -race -count=1 ./...
       - name: Vet
         run: go vet ./...
       - name: Test upstream update helper
