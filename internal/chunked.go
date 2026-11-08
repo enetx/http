@@ -236,7 +236,6 @@ type chunkedWriter struct {
 // NOTE: Note that the corresponding chunk-writing procedure in Conn.Write has
 // a bug since it does not check for success of [io.WriteString]
 func (cw *chunkedWriter) Write(data []byte) (n int, err error) {
-
 	// Don't send 0-length data. It looks like EOF for chunked encoding.
 	if len(data) == 0 {
 		return 0, nil
@@ -246,19 +245,19 @@ func (cw *chunkedWriter) Write(data []byte) (n int, err error) {
 		return 0, err
 	}
 	if n, err = cw.Wire.Write(data); err != nil {
-		return
+		return n, err
 	}
 	if n != len(data) {
 		err = io.ErrShortWrite
-		return
+		return n, err
 	}
 	if _, err = io.WriteString(cw.Wire, "\r\n"); err != nil {
-		return
+		return n, err
 	}
 	if bw, ok := cw.Wire.(*FlushAfterChunkWriter); ok {
 		err = bw.Flush()
 	}
-	return
+	return n, err
 }
 
 func (cw *chunkedWriter) Close() error {
@@ -296,5 +295,5 @@ func parseHexUint(v []byte) (n uint64, err error) {
 		n <<= 4
 		n |= uint64(b)
 	}
-	return
+	return n, err
 }

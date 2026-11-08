@@ -1,0 +1,29 @@
+name: Go
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          cache: true
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+      - name: Check generated HTTP/2 aliases
+        run: |
+          go generate ./http2
+          git diff --exit-code -- http2/frame_aliases.go
+      - name: Test
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test upstream update helper
+        run: python3 -m unittest discover -s tests/upstream

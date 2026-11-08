@@ -9,12 +9,12 @@ package http
 import (
 	"errors"
 	"fmt"
+	"internal/ascii"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 	"syscall/js"
-
-	"internal/ascii"
 )
 
 var uint8Array = js.Global().Get("Uint8Array")

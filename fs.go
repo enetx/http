@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
@@ -22,6 +23,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/enetx/http/internal"
+	"github.com/enetx/http/internal/godebug"
 )
 
 // A Dir implements [FileSystem] using the native file system restricted to a
@@ -178,7 +182,6 @@ func dirList(w ResponseWriter, r *Request, f File) {
 
 // GODEBUG=httpservecontentkeepheaders=1 restores the pre-1.23 behavior of not deleting
 // Cache-Control, Content-Encoding, Etag, or Last-Modified headers on ServeContent errors.
-// var httpservecontentkeepheaders = godebug.New("httpservecontentkeepheaders")
 
 // serveError serves an error from ServeFile, ServeFileFS, and ServeContent.
 // Because those can all be configured by the caller by setting headers like
@@ -186,27 +189,9 @@ func dirList(w ResponseWriter, r *Request, f File) {
 // the error path needs to clear them, since they may not be meant for errors.
 func serveError(w ResponseWriter, text string, code int) {
 	h := w.Header()
-
-	// nonDefault := false
-	for _, k := range []string{
-		"Cache-Control",
-		"Content-Encoding",
-		"Etag",
-		"Last-Modified",
-	} {
-		if !h.has(k) {
-			continue
-		}
-		// if httpservecontentkeepheaders.Value() == "1" {
-		// 	nonDefault = true
-		// } else {
-			h.Del(k)
-		// }
+	for _, k := range []string{"Cache-Control", "Content-Encoding", "Etag", "Last-Modified"} {
+		h.Del(k)
 	}
-	// if nonDefault {
-	// 	httpservecontentkeepheaders.IncNonDefault()
-	// }
-
 	Error(w, text, code)
 }
 
@@ -287,7 +272,7 @@ func serveContent(w ResponseWriter, r *Request, name string, modtime time.Time, 
 		ctype = mime.TypeByExtension(filepath.Ext(name))
 		if ctype == "" {
 			// read a chunk to decide between utf-8 text and binary
-			var buf [sniffLen]byte
+			var buf [internal.SniffLen]byte
 			n, _ := io.ReadFull(content, buf[:])
 			ctype = DetectContentType(buf[:n])
 			_, err := content.Seek(0, io.SeekStart) // rewind to output whole file
@@ -782,6 +767,12 @@ func toHTTPError(err error) (msg string, httpStatus int) {
 // localRedirect gives a Moved Permanently response.
 // It does not convert relative paths to absolute paths like Redirect does.
 func localRedirect(w ResponseWriter, r *Request, newPath string) {
+	// There is no reliable way for us to redirect correctly when the path has
+	// escaped slashes, since StripPrefix might be in use. Just return 404.
+	if p := r.URL.EscapedPath(); strings.Contains(p, "%2f") || strings.Contains(p, "%2F") {
+		NotFound(w, r)
+		return
+	}
 	if q := r.URL.RawQuery; q != "" {
 		newPath += "?" + q
 	}
@@ -1009,6 +1000,25 @@ func (r httpRange) mimeHeader(contentType string, size int64) textproto.MIMEHead
 	}
 }
 
+// GODEBUG=httpservecontentmaxranges=<limit> controls the maximum number of ranges that will
+// be processed in a Range header. Setting httpservecontentmaxranges=0 disables the limit.
+var httpservecontentmaxranges = godebug.New("httpservecontentmaxranges")
+
+const defaultMaxContentRanges = 200
+
+func maxContentRanges() int {
+	maxRanges := defaultMaxContentRanges
+	if v := httpservecontentmaxranges.Value(); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			maxRanges = n
+			if maxRanges == 0 {
+				maxRanges = math.MaxInt
+			}
+		}
+	}
+	return maxRanges
+}
+
 // parseRange parses a Range header string as per RFC 7233.
 // errNoOverlap is returned if none of the ranges overlap.
 func parseRange(s string, size int64) ([]httpRange, error) {
@@ -1021,6 +1031,14 @@ func parseRange(s string, size int64) ([]httpRange, error) {
 	}
 	var ranges []httpRange
 	noOverlap := false
+	numRanges := strings.Count(s[len(b):], ",") + 1
+	maxRanges := maxContentRanges()
+	if (numRanges > maxRanges) != (numRanges > defaultMaxContentRanges) {
+		httpservecontentmaxranges.IncNonDefault()
+	}
+	if numRanges > maxRanges {
+		return nil, nil // ignore header with too many ranges
+	}
 	for ra := range strings.SplitSeq(s[len(b):], ",") {
 		ra = textproto.TrimString(ra)
 		if ra == "" {

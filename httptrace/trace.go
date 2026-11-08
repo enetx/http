@@ -10,11 +10,9 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	stdtrace "net/http/httptrace"
 	"net/textproto"
-	"reflect"
 	"time"
-
-	"github.com/enetx/http/internal/nettrace"
 )
 
 // unique type to prevent assignment.
@@ -41,30 +39,18 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 
 	ctx = context.WithValue(ctx, clientEventContextKey{}, trace)
 	if trace.hasNetHooks() {
-		nt := &nettrace.Trace{
-			ConnectStart: trace.ConnectStart,
-			ConnectDone:  trace.ConnectDone,
-		}
+		nt := &stdtrace.ClientTrace{ConnectStart: trace.ConnectStart, ConnectDone: trace.ConnectDone}
 		if trace.DNSStart != nil {
-			nt.DNSStart = func(name string) {
-				trace.DNSStart(DNSStartInfo{Host: name})
-			}
+			nt.DNSStart = func(info stdtrace.DNSStartInfo) { trace.DNSStart(DNSStartInfo{Host: info.Host}) }
 		}
 		if trace.DNSDone != nil {
-			nt.DNSDone = func(netIPs []any, coalesced bool, err error) {
-				addrs := make([]net.IPAddr, len(netIPs))
-				for i, ip := range netIPs {
-					addrs[i] = ip.(net.IPAddr)
-				}
-				trace.DNSDone(DNSDoneInfo{
-					Addrs:     addrs,
-					Coalesced: coalesced,
-					Err:       err,
-				})
+			nt.DNSDone = func(info stdtrace.DNSDoneInfo) {
+				trace.DNSDone(DNSDoneInfo{Addrs: info.Addrs, Coalesced: info.Coalesced, Err: info.Err})
 			}
 		}
-		ctx = context.WithValue(ctx, nettrace.TraceKey{}, nt)
+		ctx = stdtrace.WithClientTrace(ctx, nt)
 	}
+
 	return ctx
 }
 
@@ -177,34 +163,86 @@ func (t *ClientTrace) compose(old *ClientTrace) {
 	if old == nil {
 		return
 	}
-	tv := reflect.ValueOf(t).Elem()
-	ov := reflect.ValueOf(old).Elem()
-	structType := tv.Type()
-	for i := 0; i < structType.NumField(); i++ {
-		tf := tv.Field(i)
-		hookType := tf.Type()
-		if hookType.Kind() != reflect.Func {
-			continue
-		}
-		of := ov.Field(i)
-		if of.IsNil() {
-			continue
-		}
-		if tf.IsNil() {
-			tf.Set(of)
-			continue
-		}
+	t.GetConn = compose1to0(t.GetConn, old.GetConn)
+	t.GotConn = compose1to0(t.GotConn, old.GotConn)
+	t.PutIdleConn = compose1to0(t.PutIdleConn, old.PutIdleConn)
+	t.GotFirstResponseByte = compose0to0(t.GotFirstResponseByte, old.GotFirstResponseByte)
+	t.Got100Continue = compose0to0(t.Got100Continue, old.Got100Continue)
+	t.Got1xxResponse = compose2to1(t.Got1xxResponse, old.Got1xxResponse)
+	t.DNSStart = compose1to0(t.DNSStart, old.DNSStart)
+	t.DNSDone = compose1to0(t.DNSDone, old.DNSDone)
+	t.ConnectStart = compose2to0(t.ConnectStart, old.ConnectStart)
+	t.ConnectDone = compose3to0(t.ConnectDone, old.ConnectDone)
+	t.TLSHandshakeStart = compose0to0(t.TLSHandshakeStart, old.TLSHandshakeStart)
+	t.TLSHandshakeDone = compose2to0(t.TLSHandshakeDone, old.TLSHandshakeDone)
+	t.WroteHeaderField = compose2to0(t.WroteHeaderField, old.WroteHeaderField)
+	t.WroteHeaders = compose0to0(t.WroteHeaders, old.WroteHeaders)
+	t.Wait100Continue = compose0to0(t.Wait100Continue, old.Wait100Continue)
+	t.WroteRequest = compose1to0(t.WroteRequest, old.WroteRequest)
+}
 
-		// Make a copy of tf for tf to call. (Otherwise it
-		// creates a recursive call cycle and stack overflows)
-		tfCopy := reflect.ValueOf(tf.Interface())
+func compose0to0[F func()](f1, f2 F) F {
+	if f1 == nil {
+		return f2
+	}
+	if f2 == nil {
+		return f1
+	}
+	return func() {
+		f1()
+		f2()
+	}
+}
 
-		// We need to call both tf and of in some order.
-		newFunc := reflect.MakeFunc(hookType, func(args []reflect.Value) []reflect.Value {
-			tfCopy.Call(args)
-			return of.Call(args)
-		})
-		tv.Field(i).Set(newFunc)
+func compose1to0[F func(A), A any](f1, f2 F) F {
+	if f1 == nil {
+		return f2
+	}
+	if f2 == nil {
+		return f1
+	}
+	return func(a A) {
+		f1(a)
+		f2(a)
+	}
+}
+
+func compose2to0[F func(A, B), A, B any](f1, f2 F) F {
+	if f1 == nil {
+		return f2
+	}
+	if f2 == nil {
+		return f1
+	}
+	return func(a A, b B) {
+		f1(a, b)
+		f2(a, b)
+	}
+}
+
+func compose2to1[F func(A, B) R, A, B, R any](f1, f2 F) F {
+	if f1 == nil {
+		return f2
+	}
+	if f2 == nil {
+		return f1
+	}
+	return func(a A, b B) R {
+		f1(a, b)
+		return f2(a, b)
+	}
+}
+
+func compose3to0[F func(A, B, C), A, B, C any](f1, f2 F) F {
+	if f1 == nil {
+		return f2
+	}
+	if f2 == nil {
+		return f1
+	}
+	return func(a A, b B, c C) {
+		f1(a, b, c)
+		f2(a, b, c)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/enetx/http/internal/ascii"
+	"github.com/enetx/http/internal/godebug"
 )
 
 // A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
@@ -66,10 +67,22 @@ var (
 	errCookieNumLimitExceeded = errors.New("http: number of cookies exceeded limit")
 )
 
+var httpcookiemaxnum = godebug.New("httpcookiemaxnum")
+
 const defaultCookieMaxNum = 3000
 
 func cookieNumWithinMax(cookieNum int) bool {
 	withinDefaultMax := cookieNum <= defaultCookieMaxNum
+	if httpcookiemaxnum.Value() == "" {
+		return withinDefaultMax
+	}
+	if customMax, err := strconv.Atoi(httpcookiemaxnum.Value()); err == nil {
+		withinCustomMax := customMax == 0 || cookieNum <= customMax
+		if withinDefaultMax != withinCustomMax {
+			httpcookiemaxnum.IncNonDefault()
+		}
+		return withinCustomMax
+	}
 	return withinDefaultMax
 }
 
@@ -77,15 +90,14 @@ func cookieNumWithinMax(cookieNum int) bool {
 // which were set in it. Since the same cookie name can appear multiple times
 // the returned Values can contain more than one value for a given key.
 func ParseCookie(line string) ([]*Cookie, error) {
-	if !cookieNumWithinMax(strings.Count(line, ";") + 1) {
+	nparts := strings.Count(line, ";") + 1
+	if !cookieNumWithinMax(nparts) {
 		return nil, errCookieNumLimitExceeded
-	}
-	parts := strings.Split(textproto.TrimString(line), ";")
-	if len(parts) == 1 && parts[0] == "" {
+	} else if nparts == 1 && textproto.TrimString(line) == "" {
 		return nil, errBlankCookie
 	}
-	cookies := make([]*Cookie, 0, len(parts))
-	for _, s := range parts {
+	cookies := make([]*Cookie, 0, nparts)
+	for s := range strings.SplitSeq(line, ";") {
 		s = textproto.TrimString(s)
 		name, value, found := strings.Cut(s, "=")
 		if !found {
