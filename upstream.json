@@ -7,10 +7,6 @@
     "version": "v0.62.0",
     "commit": "3de643db506517b3e652a13cc0b56034cea6b8e6"
   },
-  "quic_go": {
-    "version": "v0.65.0",
-    "commit": "aa265c3fc6489e3bfa8071b333be95e0e887a51d"
-  },
   "minimum_go": "1.27",
   "own_files": [
     "tests/http1/header_test.go",
@@ -19,7 +15,8 @@
     "http2/ascii.go",
     "http2/frame_aliases.go",
     "http2/gen_aliases.go",
-    "internal/godebug/godebug.go"
+    "internal/godebug/godebug.go",
+    "headerorder/headerorder.go"
   ],
   "omitted_go_files": [
     "servemux121.go",
@@ -57,7 +54,6 @@
     "tests/headerorder/headerorder_test.go": "internal/headerorder/headerorder_test.go",
     "tests/settings/godebug_test.go": "internal/godebug/godebug_test.go",
     "tests/ascii/upstream_print_test.go": "internal/ascii/upstream_print_test.go",
-    "tests/http3_qlog/header_redactor_test.go": "http3/qlog/header_redactor_test.go",
     "tests/http1/upstream_readrequest_test.go": "upstream_readrequest_test.go",
     "tests/http1/upstream_helpers_test.go": "upstream_helpers_test.go"
   }

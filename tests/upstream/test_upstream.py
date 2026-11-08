@@ -51,7 +51,6 @@ class PrepareTests(unittest.TestCase):
             lock = {
                 "go": {"version": "go1.27.3", "commit": "old"},
                 "x_net": {"version": "v0.62.0", "commit": "net"},
-                "quic_go": {"version": "v0.65.0", "commit": "quic"},
                 "own_files": [],
                 "omitted_go_files": [],
                 "omitted_httputil_files": [],

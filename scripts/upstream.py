@@ -41,9 +41,7 @@ def source(kind, version, supplied):
                 raise SystemExit(f"Source commit does not match upstream.json: {path}")
         return path
     if kind != "go":
-        module = {"x_net": "golang.org/x/net", "quic_go": "github.com/quic-go/quic-go"}[
-            kind
-        ]
+        module = "golang.org/x/net"
         result = json.loads(
             run(["go", "mod", "download", "-json", f"{module}@{version}"], cwd=ROOT)
         )
@@ -89,7 +87,6 @@ def normalize(text):
         ('"net/http/', '"github.com/enetx/http/'),
         ('"internal/', '"github.com/enetx/http/internal/'),
         ('"vendor/golang.org/', '"golang.org/'),
-        ('"github.com/quic-go/quic-go/http3', '"github.com/enetx/http/http3'),
         (
             '"golang.org/x/net/internal/httpcommon"',
             '"github.com/enetx/http/internal/httpcommon"',
@@ -126,8 +123,6 @@ def upstream_path(rel, sources):
         return None
     rel = Path(LOCK.get("test_relocations", {}).get(name, name))
     name = rel.as_posix()
-    if name.startswith("http3/"):
-        return sources["quic_go"] / name
     if name.startswith("http2/"):
         return sources["x_net"] / name
     if name.startswith(("internal/gate/", "internal/nettest/")):
@@ -150,8 +145,7 @@ def main():
     ap.add_argument("command", choices=["audit", "prepare"])
     ap.add_argument("--go", dest="go_version", default=LOCK["go"]["version"])
     ap.add_argument("--net", dest="net_version", default=LOCK["x_net"]["version"])
-    ap.add_argument("--quic", dest="quic_version", default=LOCK["quic_go"]["version"])
-    for option in ["go", "net", "quic"]:
+    for option in ["go", "net"]:
         ap.add_argument(
             f"--{option}-source",
             help="use an already downloaded checkout/module directory",
@@ -168,7 +162,6 @@ def main():
     if args.command == "audit" and (
         args.go_version != LOCK["go"]["version"]
         or args.net_version != LOCK["x_net"]["version"]
-        or args.quic_version != LOCK["quic_go"]["version"]
     ):
         ap.error(
             "audit compares the pinned versions; use prepare to select new versions"
@@ -176,12 +169,10 @@ def main():
     supplied = {
         "go": args.go_source,
         "x_net": args.net_source,
-        "quic_go": args.quic_source,
     }
     requested = {
         "go": args.go_version,
         "x_net": args.net_version,
-        "quic_go": args.quic_version,
     }
     base = {
         k: source(k, v["version"], supplied[k])
@@ -325,10 +316,7 @@ def main():
                         ["git", "-C", str(latest[kind]), "rev-parse", "HEAD"]
                     )
                 else:
-                    module = {
-                        "x_net": "golang.org/x/net",
-                        "quic_go": "github.com/quic-go/quic-go",
-                    }[kind]
+                    module = "golang.org/x/net"
                     metadata = json.loads(
                         run(
                             ["go", "mod", "download", "-json", f"{module}@{version}"],
@@ -345,7 +333,6 @@ def main():
                 "mod",
                 "edit",
                 "-require=golang.org/x/net@" + requested["x_net"],
-                "-require=github.com/quic-go/quic-go@" + requested["quic_go"],
             ],
             cwd=candidate,
         )

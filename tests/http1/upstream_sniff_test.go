@@ -240,7 +240,7 @@ func testContentTypeWithVariousSources(t *testing.T, mode testMode) {
 				t.Errorf("Content-Type = %q, want %q", ct, expected)
 			}
 			// HTTP/3 does not populate Content-Length automatically.
-			if want, got := resp.Header.Get("Content-Length"), fmt.Sprint(len(input)); want != got && mode != http3Mode {
+			if want, got := resp.Header.Get("Content-Length"), fmt.Sprint(len(input)); want != got {
 				t.Errorf("Content-Length = %q, want %q", want, got)
 			}
 			data, err := io.ReadAll(resp.Body)

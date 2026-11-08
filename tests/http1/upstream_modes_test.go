@@ -12,7 +12,6 @@ type testMode string
 const (
 	http1Mode testMode = "h1"
 	http2Mode testMode = "h2"
-	http3Mode testMode = "h3"
 )
 
 func run(t *testing.T, f func(*testing.T, testMode)) {
