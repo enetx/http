@@ -15,11 +15,13 @@ const (
 	HPACKDefault              = native.HPACKDefault
 	HPACKWithoutIndexing      = native.HPACKWithoutIndexing
 	HPACKNeverIndex           = native.HPACKNeverIndex
+	HPACKIncrementalIndexing  = native.HPACKIncrementalIndexing
 	HPACKHuffmanDefault       = native.HPACKHuffmanDefault
 	HPACKHuffmanAlways        = native.HPACKHuffmanAlways
 	HPACKHuffmanNever         = native.HPACKHuffmanNever
 	HPACKNameReferenceDefault = native.HPACKNameReferenceDefault
 	HPACKNameReferenceLast    = native.HPACKNameReferenceLast
+	HPACKNameReferenceFirst   = native.HPACKNameReferenceFirst
 )
 
 func (t *Transport) fingerprint() *http.HTTP2Fingerprint {

@@ -101,6 +101,12 @@ The header policy adapter selects literal representations, Huffman mode and
 name references. Its optional bounded membership table records only entries the
 official encoder actually inserts, following its capacity updates and eviction.
 This permits an insertion-size limit without losing reusable exact entries.
+`HPACKNameReferenceFirst` selects the first static name without a per-connection
+shadow table. `HPACKIncrementalIndexing` retains exact references and emits an
+incremental literal even for an oversized entry. The adapter then empties the
+official encoder through its public capacity API, discarding only the private
+reset's synthetic updates. Real pending peer updates and the encoder's configured
+capacity limit are retained. No codec internals or additional fork are required.
 Do not copy an HPACK codec or browser-specific policy into this module.
 
 `tests/http2/header_policy_test.go` exercises multiple requests on a real

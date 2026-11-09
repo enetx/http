@@ -64,6 +64,16 @@ var staticHPACKEntries = sync.OnceValue(func() []hpack.HeaderField {
 	return entries
 })
 
+var staticHPACKFirstNames = sync.OnceValue(func() map[string]uint64 {
+	names := make(map[string]uint64)
+	for i, entry := range staticHPACKEntries() {
+		if names[entry.Name] == 0 {
+			names[entry.Name] = uint64(i + 1)
+		}
+	}
+	return names
+})
+
 func (t *indexedFields) nameReference(field hpack.HeaderField) uint64 {
 	var reference uint64
 	for i, entry := range staticHPACKEntries() {

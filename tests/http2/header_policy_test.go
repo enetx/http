@@ -175,7 +175,7 @@ func nextPolicyCapture(t *testing.T, events <-chan policyCapture) policyCapture 
 }
 
 func TestHPACKRepresentationsAcrossRequests(t *testing.T) {
-	for _, rep := range []http2.HPACKRepresentation{http2.HPACKDefault, http2.HPACKWithoutIndexing, http2.HPACKNeverIndex} {
+	for _, rep := range []http2.HPACKRepresentation{http2.HPACKDefault, http2.HPACKWithoutIndexing, http2.HPACKNeverIndex, http2.HPACKIncrementalIndexing} {
 		t.Run(fmt.Sprint(rep), func(t *testing.T) {
 			tr, events := newPolicyTransport(t, 3, false, func(tr *http2.Transport) {
 				tr.HPACK = &http2.HPACKConfig{Representations: map[string]http2.HPACKRepresentation{"x-repeat": rep, "authorization": http2.HPACKNeverIndex, ":method": http2.HPACKNeverIndex}}
@@ -199,7 +199,7 @@ func TestHPACKRepresentationsAcrossRequests(t *testing.T) {
 					case "x-repeat":
 						form := got.forms[j]
 						switch rep {
-						case http2.HPACKDefault:
+						case http2.HPACKDefault, http2.HPACKIncrementalIndexing:
 							if i == 0 && form&0xc0 != 0x40 || i > 0 && form&0x80 == 0 {
 								t.Fatalf("request %d default form=%x", i, form)
 							}

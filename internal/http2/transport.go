@@ -131,7 +131,7 @@ func (t *unencryptedTransport) RoundTrip(req *ClientRequest) (*ClientResponse, e
 // HTTP/2 server.
 type ClientConn struct {
 	fingerprint      *Fingerprint
-	fingerprintTable *indexedFields // guarded by wmu; only allocated for indexing limits
+	fingerprintTable *indexedFields // guarded by wmu; optional membership/name lookup
 
 	t             *Transport
 	tconn         net.Conn             // usually *tls.Conn, except specialized impls

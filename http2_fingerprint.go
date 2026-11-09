@@ -19,9 +19,11 @@ const (
 	HTTP2HPACKDefault              = http2.HPACKDefault
 	HTTP2HPACKWithoutIndexing      = http2.HPACKWithoutIndexing
 	HTTP2HPACKNeverIndex           = http2.HPACKNeverIndex
+	HTTP2HPACKIncrementalIndexing  = http2.HPACKIncrementalIndexing
 	HTTP2HPACKHuffmanDefault       = http2.HPACKHuffmanDefault
 	HTTP2HPACKHuffmanAlways        = http2.HPACKHuffmanAlways
 	HTTP2HPACKHuffmanNever         = http2.HPACKHuffmanNever
 	HTTP2HPACKNameReferenceDefault = http2.HPACKNameReferenceDefault
 	HTTP2HPACKNameReferenceLast    = http2.HPACKNameReferenceLast
+	HTTP2HPACKNameReferenceFirst   = http2.HPACKNameReferenceFirst
 )

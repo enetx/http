@@ -33,6 +33,9 @@ const (
 	// HPACKNameReferenceLast scans static entries, then dynamic entries from
 	// newest to oldest. An exact match wins; otherwise the last matching name wins.
 	HPACKNameReferenceLast
+	// HPACKNameReferenceFirst uses the first matching static name; otherwise
+	// it keeps the upstream encoder's most recent dynamic name reference.
+	HPACKNameReferenceFirst
 )
 
 const (
@@ -41,6 +44,10 @@ const (
 	HPACKWithoutIndexing
 	// HPACKNeverIndex always emits a literal with the never-index instruction.
 	HPACKNeverIndex
+	// HPACKIncrementalIndexing reuses exact matches, otherwise emits an
+	// incremental literal even when the entry exceeds the table capacity.
+	// An oversized insertion empties the table, as required by RFC 7541 4.4.
+	HPACKIncrementalIndexing
 )
 
 // HPACKConfig controls request and trailer encoding without replacing x/net's
@@ -85,15 +92,15 @@ func (c *HPACKConfig) Validate() error {
 	if c == nil {
 		return nil
 	}
-	if c.Default > HPACKNeverIndex {
+	if c.Default > HPACKIncrementalIndexing {
 		return fmt.Errorf("http2: invalid HPACK default representation %d", c.Default)
 	}
-	if c.Huffman > HPACKHuffmanNever || c.NameReferencePolicy > HPACKNameReferenceLast {
+	if c.Huffman > HPACKHuffmanNever || c.NameReferencePolicy > HPACKNameReferenceFirst {
 		return fmt.Errorf("http2: invalid HPACK encoding policy")
 	}
 	for name, rep := range c.Representations {
 		lower, ascii := httpcommon.LowerHeader(name)
-		if !ascii || name != lower || !httpguts.ValidHeaderFieldName(strings.TrimPrefix(name, ":")) || rep > HPACKNeverIndex {
+		if !ascii || name != lower || !httpguts.ValidHeaderFieldName(strings.TrimPrefix(name, ":")) || rep > HPACKIncrementalIndexing {
 			return fmt.Errorf("http2: invalid HPACK representation for %q", name)
 		}
 	}
@@ -113,16 +120,16 @@ func (cc *ClientConn) writeFingerprintHeader(name, value string) error {
 			rep = override
 		}
 	}
-	if rep > HPACKNeverIndex {
+	if rep > HPACKIncrementalIndexing {
 		return fmt.Errorf("http2: invalid HPACK representation %d for %q", rep, name)
 	}
 	field := hpack.HeaderField{Name: name, Value: value}
 	var nameReference uint64
-	if config != nil && (config.IndexingLimit != nil || config.NameReferencePolicy != HPACKNameReferenceDefault) {
+	if config != nil && (config.IndexingLimit != nil || config.NameReferencePolicy == HPACKNameReferenceLast) {
 		if cc.fingerprintTable == nil {
 			cc.fingerprintTable = newIndexedFields(cc.henc.MaxDynamicTableSize())
 		}
-		if config.IndexingLimit != nil && rep == HPACKDefault && field.Size() > config.IndexingLimit(cc.henc.MaxDynamicTableSize()) && !cc.fingerprintTable.contains(field) && !staticHPACKFields()[field] {
+		if config.IndexingLimit != nil && (rep == HPACKDefault || rep == HPACKIncrementalIndexing) && field.Size() > config.IndexingLimit(cc.henc.MaxDynamicTableSize()) && !cc.fingerprintTable.contains(field) && !staticHPACKFields()[field] {
 			rep = HPACKWithoutIndexing
 		}
 		if config.NameReferencePolicy == HPACKNameReferenceLast {
@@ -130,12 +137,13 @@ func (cc *ClientConn) writeFingerprintHeader(name, value string) error {
 		}
 	}
 	start := cc.hbuf.Len()
-	field.Sensitive = rep != HPACKDefault
+	field.Sensitive = rep == HPACKWithoutIndexing || rep == HPACKNeverIndex
 	if err := cc.henc.WriteField(field); err != nil {
 		return err
 	}
 	data := skipHPACKSizeUpdates(cc.hbuf.Bytes()[start:])
-	if config != nil && len(data) > 0 && data[0]&0x80 == 0 && (config.Huffman != HPACKHuffmanDefault || config.NameReferencePolicy != HPACKNameReferenceDefault) {
+	oversizedInsert := rep == HPACKIncrementalIndexing && len(data) > 0 && data[0]&0x80 == 0 && uint64(len(name))+uint64(len(value))+32 > uint64(cc.henc.MaxDynamicTableSize())
+	if config != nil && len(data) > 0 && data[0]&0x80 == 0 && (config.Huffman != HPACKHuffmanDefault || config.NameReferencePolicy != HPACKNameReferenceDefault || oversizedInsert) {
 		prefix := uint8(4)
 		if data[0]&0xc0 == 0x40 {
 			prefix = 6
@@ -146,10 +154,16 @@ func (cc *ClientConn) writeFingerprintHeader(name, value string) error {
 		}
 		if config.NameReferencePolicy == HPACKNameReferenceLast {
 			index = nameReference
+		} else if config.NameReferencePolicy == HPACKNameReferenceFirst {
+			if first := staticHPACKFirstNames()[name]; first != 0 {
+				index = first
+			}
 		}
 		flags := data[0] & byte(0xff<<prefix)
 		if rep == HPACKWithoutIndexing {
 			flags &^= 0x10
+		} else if oversizedInsert {
+			prefix, flags = 6, 0x40
 		}
 		literal := appendHPACKIndex(nil, prefix, flags, index)
 		if index == 0 {
@@ -160,7 +174,11 @@ func (cc *ClientConn) writeFingerprintHeader(name, value string) error {
 		cc.hbuf.Write(literal)
 		data = skipHPACKSizeUpdates(cc.hbuf.Bytes()[start:])
 	}
-	if cc.fingerprintTable != nil && len(data) > 0 && data[0]&0xc0 == 0x40 {
+	if oversizedInsert {
+		if err := cc.clearFingerprintEncoderTable(); err != nil {
+			return err
+		}
+	} else if cc.fingerprintTable != nil && len(data) > 0 && data[0]&0xc0 == 0x40 {
 		cc.fingerprintTable.add(field)
 	}
 	if rep == HPACKWithoutIndexing && (config == nil || config.Huffman == HPACKHuffmanDefault && config.NameReferencePolicy == HPACKNameReferenceDefault) {
