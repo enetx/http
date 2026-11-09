@@ -1,21 +1,42 @@
 package http2
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
-// Fingerprint controls the client's initial HTTP/2 wire representation.
+// Fingerprint controls the client's HTTP/2 connection and request representation.
 // A nil Fingerprint retains the upstream defaults.
 type Fingerprint struct {
-	Settings       []Setting
-	StreamID       uint32
-	ConnectionFlow uint32
-	PriorityParam  PriorityParam
-	PriorityFrames []PriorityFrame
+	Settings                []Setting
+	StreamID                uint32
+	ConnectionFlow          uint32
+	PriorityParam           PriorityParam
+	PriorityFrames          []PriorityFrame
+	HPACK                   *HPACKConfig
+	HeaderPriority          func(PriorityRequest) PriorityParam
+	ChainStreamDependencies bool
+}
+
+// Clone freezes mutable configuration when a connection is created.
+func (fp *Fingerprint) Clone() *Fingerprint {
+	if fp == nil {
+		return nil
+	}
+	copy := *fp
+	copy.Settings = slices.Clone(fp.Settings)
+	copy.PriorityFrames = slices.Clone(fp.PriorityFrames)
+	copy.HPACK = fp.HPACK.Clone()
+	return &copy
 }
 
 func (cc *ClientConn) applyFingerprint(conf *Config) error {
 	fp := conf.Fingerprint
 	if fp == nil {
 		return nil
+	}
+	if err := fp.HPACK.Validate(); err != nil {
+		return err
 	}
 	if fp.StreamID != 0 {
 		if fp.StreamID%2 == 0 || fp.StreamID > 0x7fffffff {

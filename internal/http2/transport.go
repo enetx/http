@@ -130,7 +130,8 @@ func (t *unencryptedTransport) RoundTrip(req *ClientRequest) (*ClientResponse, e
 // ClientConn is the state of a single HTTP/2 client connection to an
 // HTTP/2 server.
 type ClientConn struct {
-	fingerprint *Fingerprint
+	fingerprint      *Fingerprint
+	fingerprintTable *indexedFields // guarded by wmu; only allocated for indexing limits
 
 	t             *Transport
 	tconn         net.Conn             // usually *tls.Conn, except specialized impls
@@ -231,8 +232,10 @@ type clientStream struct {
 	cc *ClientConn
 
 	// Fields of Request that we may access even after the response body is closed.
-	ctx       context.Context
-	reqCancel <-chan struct{}
+	ctx               context.Context
+	reqCancel         <-chan struct{}
+	headerPriority    PriorityParam // guarded by cc.mu
+	headerPrioritySet bool          // guarded by cc.mu
 
 	trace         *httptrace.ClientTrace // or nil
 	ID            uint32
@@ -635,7 +638,8 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool, internalStateHook 
 		lastActive:                  time.Now(),
 		internalStateHook:           internalStateHook,
 	}
-	cc.fingerprint = conf.Fingerprint
+	cc.fingerprint = conf.Fingerprint.Clone()
+	conf.Fingerprint = cc.fingerprint
 	if err := cc.applyFingerprint(&conf); err != nil {
 		return nil, err
 	}
@@ -1429,18 +1433,31 @@ func (cs *clientStream) encodeAndWriteHeaders(req *ClientRequest) error {
 	// sent by writeRequestBody below, along with any Trailers,
 	// again in form HEADERS{1}, CONTINUATION{0,})
 	cc.hbuf.Reset()
+	priority, err := cc.requestFingerprintPriority(req, cs)
+	if err != nil {
+		return err
+	}
+	var encodeErr error
 	res, err := encodeRequestHeaders(req, cs.requestedGzip, cc.peerMaxHeaderListSize, func(name, value string) {
-		cc.writeHeader(name, value)
+		if encodeErr == nil {
+			encodeErr = cc.writeFingerprintHeader(name, value)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("http2: %w", err)
+	}
+	if encodeErr != nil {
+		// Earlier fields may already have advanced the encoder table.
+		// Retire this connection rather than reusing unsent table entries.
+		go cc.closeForError(encodeErr)
+		return encodeErr
 	}
 	hdrs := cc.hbuf.Bytes()
 
 	// Write the request.
 	endStream := !res.HasBody && !res.HasTrailers
 	cs.sentHeaders = true
-	err = cc.writeHeaders(cs.ID, endStream, int(cc.maxFrameSize), hdrs)
+	err = cc.writeHeadersPriority(cs.ID, endStream, int(cc.maxFrameSize), hdrs, priority)
 	traceWroteHeaders(cs.trace)
 	return err
 }
@@ -1600,6 +1617,10 @@ func (cc *ClientConn) awaitOpenSlotForStreamLocked(cs *clientStream) error {
 
 // requires cc.wmu be held
 func (cc *ClientConn) writeHeaders(streamID uint32, endStream bool, maxFrameSize int, hdrs []byte) error {
+	return cc.writeHeadersPriority(streamID, endStream, maxFrameSize, hdrs, cc.fingerprintPriority())
+}
+
+func (cc *ClientConn) writeHeadersPriority(streamID uint32, endStream bool, maxFrameSize int, hdrs []byte, priority PriorityParam) error {
 	first := true // first frame written (HEADERS is first, then CONTINUATION)
 	for len(hdrs) > 0 && cc.werr == nil {
 		chunk := hdrs
@@ -1614,7 +1635,7 @@ func (cc *ClientConn) writeHeaders(streamID uint32, endStream bool, maxFrameSize
 				BlockFragment: chunk,
 				EndStream:     endStream,
 				EndHeaders:    endHeaders,
-				Priority:      cc.fingerprintPriority(),
+				Priority:      priority,
 			})
 			first = false
 		} else {
@@ -1801,7 +1822,7 @@ func (cs *clientStream) writeRequestBody(req *ClientRequest) (err error) {
 	// Two ways to send END_STREAM: either with trailers, or
 	// with an empty DATA frame.
 	if len(trls) > 0 {
-		err = cc.writeHeaders(cs.ID, true, maxFrameSize, trls)
+		err = cc.writeHeadersPriority(cs.ID, true, maxFrameSize, trls, PriorityParam{})
 	} else {
 		err = cc.fr.WriteData(cs.ID, true, nil)
 	}
@@ -1881,7 +1902,10 @@ func (cc *ClientConn) encodeTrailers(trailer Header) ([]byte, error) {
 		// Transfer-Encoding, etc.. have already been filtered at the
 		// start of RoundTrip
 		for _, v := range vv {
-			cc.writeHeader(lowKey, v)
+			if err := cc.writeFingerprintHeader(lowKey, v); err != nil {
+				go cc.closeForError(err)
+				return nil, err
+			}
 		}
 	}
 	return cc.hbuf.Bytes(), nil
@@ -2781,7 +2805,7 @@ func (rl *clientConnReadLoop) processSettingsNoWrite(f *SettingsFrame) error {
 			}
 			cc.cond.Broadcast()
 		case SettingHeaderTableSize:
-			cc.henc.SetMaxDynamicTableSize(s.Val)
+			cc.setFingerprintEncoderTableSize(s.Val)
 			cc.peerMaxHeaderTableSize = s.Val
 		case SettingEnableConnectProtocol:
 			// If the peer wants to send us SETTINGS_ENABLE_CONNECT_PROTOCOL,

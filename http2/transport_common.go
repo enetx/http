@@ -43,11 +43,14 @@ func ConfigureTransports(t1 *http.Transport) (*Transport, error) {
 // for concurrent use by multiple goroutines.
 type Transport struct {
 	// Initial HTTP/2 wire representation, preserved from the original fork.
-	Settings       []Setting
-	StreamID       uint32
-	ConnectionFlow uint32
-	PriorityParam  PriorityParam
-	PriorityFrames []PriorityFrame
+	Settings                []Setting
+	StreamID                uint32
+	ConnectionFlow          uint32
+	PriorityParam           PriorityParam
+	PriorityFrames          []PriorityFrame
+	HPACK                   *HPACKConfig
+	HeaderPriority          func(PriorityRequest) PriorityParam
+	ChainStreamDependencies bool
 
 	// DialTLSContext specifies an optional dial function with context for
 	// creating TLS connections for requests.
