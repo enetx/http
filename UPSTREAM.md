@@ -29,6 +29,10 @@ The retained behavior is covered by protocol and Surf regression tests:
 - HTTP/2 preserves the exact SETTINGS list/order, initial stream ID, connection
   WINDOW_UPDATE increment, PRIORITY prelude and HEADERS priority parameters.
   Actual receive windows/decoder limits agree with the advertised settings.
+- HTTP/2 first-request lifecycle checks account for the configured stream ID
+  and PRIORITY prelude. Error GOAWAY frames do not retry that first request;
+  graceful GOAWAY keeps upstream retry behavior. Single-use connections accept
+  their first request even when its stream ID is greater than 1.
 
 
 The old exported `H2transport` assignment is replaced by native registration and

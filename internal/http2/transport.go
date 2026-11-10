@@ -834,7 +834,7 @@ func (cc *ClientConn) idleState() clientConnIdleState {
 }
 
 func (cc *ClientConn) idleStateLocked() (st clientConnIdleState) {
-	if cc.singleUse && cc.nextStreamID > 1 {
+	if cc.singleUse && cc.nextStreamID > cc.firstRequestStreamID() {
 		return
 	}
 	var maxConcurrentOkay bool
@@ -863,7 +863,7 @@ func (cc *ClientConn) idleStateLocked() (st clientConnIdleState) {
 	//
 	// This avoids a situation where an error early in a connection's lifetime
 	// goes unreported.
-	if cc.nextStreamID == 1 && cc.streamsReserved == 0 && cc.closed && !cc.closedOnIdle {
+	if cc.nextStreamID == cc.firstRequestStreamID() && cc.streamsReserved == 0 && cc.closed && !cc.closedOnIdle {
 		st.canTakeNewRequest = true
 	}
 
@@ -1597,7 +1597,7 @@ func (cs *clientStream) cleanupWriteRequest(err error) {
 // Must hold cc.mu.
 func (cc *ClientConn) awaitOpenSlotForStreamLocked(cs *clientStream) error {
 	for {
-		if cc.closed && cc.nextStreamID == 1 && cc.streamsReserved == 0 {
+		if cc.closed && cc.nextStreamID == cc.firstRequestStreamID() && cc.streamsReserved == 0 {
 			// This is the very first request sent to this connection.
 			// Return a fatal error which aborts the retry loop.
 			return errClientConnNotEstablished
@@ -2750,7 +2750,7 @@ func (rl *clientConnReadLoop) processGoAway(f *GoAwayFrame) error {
 			// without doing so. Either way, leave the stream alone for now.
 			continue
 		}
-		if streamID == 1 && cc.goAway.ErrCode != ErrCodeNo {
+		if streamID == cc.firstRequestStreamID() && cc.goAway.ErrCode != ErrCodeNo {
 			// Don't retry the first stream on a connection if we get a non-NO error.
 			// If the server is sending an error on a new connection,
 			// retrying the request on a new one probably isn't going to work.

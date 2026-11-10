@@ -34,6 +34,21 @@ func (fp *Fingerprint) Clone() *Fingerprint {
 	return &copy
 }
 
+// firstRequestStreamID includes reserved PRIORITY streams, which advance the
+// first request past the configured starting ID. Native connection lifecycle
+// checks must use this value instead of assuming the first request is stream 1.
+func (cc *ClientConn) firstRequestStreamID() uint32 {
+	if fp := cc.fingerprint; fp != nil {
+		if n := len(fp.PriorityFrames); n != 0 {
+			return fp.PriorityFrames[n-1].StreamID + 2
+		}
+		if fp.StreamID != 0 {
+			return fp.StreamID
+		}
+	}
+	return 1
+}
+
 func (cc *ClientConn) applyFingerprint(conf *Config) error {
 	fp := conf.Fingerprint
 	if fp == nil {
