@@ -3,8 +3,9 @@ package http
 import "github.com/enetx/http/internal/http2"
 
 // HTTP2Fingerprint controls initial connection frames, request priorities and
-// header encoding. A nil value uses upstream defaults.
+// header encoding and receive-credit batching. A nil value uses upstream defaults.
 type HTTP2Fingerprint = http2.Fingerprint
+type HTTP2ReceiveWindowUpdateInfo = http2.ReceiveWindowUpdateInfo
 
 type HTTP2Setting = http2.Setting
 type HTTP2PriorityParam = http2.PriorityParam

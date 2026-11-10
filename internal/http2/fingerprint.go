@@ -8,14 +8,18 @@ import (
 // Fingerprint controls the client's HTTP/2 connection and request representation.
 // A nil Fingerprint retains the upstream defaults.
 type Fingerprint struct {
-	Settings                []Setting
-	StreamID                uint32
-	ConnectionFlow          uint32
-	PriorityParam           PriorityParam
-	PriorityFrames          []PriorityFrame
-	HPACK                   *HPACKConfig
-	HeaderPriority          func(PriorityRequest) PriorityParam
-	ChainStreamDependencies bool
+	// StreamReceiveWindow increases client-created streams with an initial
+	// WINDOW_UPDATE after HEADERS, independently of SETTINGS_INITIAL_WINDOW_SIZE.
+	StreamReceiveWindow       uint32
+	ReceiveWindowUpdatePolicy func(ReceiveWindowUpdateInfo) bool
+	Settings                  []Setting
+	StreamID                  uint32
+	ConnectionFlow            uint32
+	PriorityParam             PriorityParam
+	PriorityFrames            []PriorityFrame
+	HPACK                     *HPACKConfig
+	HeaderPriority            func(PriorityRequest) PriorityParam
+	ChainStreamDependencies   bool
 }
 
 // Clone freezes mutable configuration when a connection is created.
@@ -67,6 +71,9 @@ func (cc *ClientConn) applyFingerprint(conf *Config) error {
 		case SettingMaxFrameSize:
 			conf.MaxReadFrameSize = int(s.Val)
 		}
+	}
+	if fp.StreamReceiveWindow > 0x7fffffff || (fp.StreamReceiveWindow != 0 && fp.StreamReceiveWindow < uint32(cc.initialStreamRecvWindowSize)) {
+		return fmt.Errorf("http2: stream receive window must not shrink the advertised initial window")
 	}
 	return nil
 }

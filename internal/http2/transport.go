@@ -700,6 +700,9 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool, internalStateHook 
 	}
 	cc.fr.WriteWindowUpdate(0, uint32(conf.MaxReceiveBufferPerConnection))
 	cc.inflow.init(int32(conf.MaxReceiveBufferPerConnection) + initialWindowSize)
+	if cc.fingerprint != nil {
+		cc.inflow.setUpdatePolicy(cc.fingerprint.ReceiveWindowUpdatePolicy)
+	}
 	cc.bw.Flush()
 	if cc.werr != nil {
 		cc.Close()
@@ -1458,6 +1461,9 @@ func (cs *clientStream) encodeAndWriteHeaders(req *ClientRequest) error {
 	endStream := !res.HasBody && !res.HasTrailers
 	cs.sentHeaders = true
 	err = cc.writeHeadersPriority(cs.ID, endStream, int(cc.maxFrameSize), hdrs, priority)
+	if err == nil {
+		err = cc.writeInitialStreamWindow(cs.ID)
+	}
 	traceWroteHeaders(cs.trace)
 	return err
 }
@@ -1927,7 +1933,10 @@ type resAndError struct {
 // requires cc.mu be held.
 func (cc *ClientConn) addStreamLocked(cs *clientStream) {
 	cs.flow.conn = &cc.flow
-	cs.inflow.init(cc.initialStreamRecvWindowSize)
+	cs.inflow.init(cc.streamReceiveWindow())
+	if cc.fingerprint != nil {
+		cs.inflow.setUpdatePolicy(cc.fingerprint.ReceiveWindowUpdatePolicy)
+	}
 	cs.ID = cc.nextStreamID
 	cc.nextStreamID += 2
 	cc.streams[cs.ID] = cs

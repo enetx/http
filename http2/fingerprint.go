@@ -10,6 +10,7 @@ type HPACKRepresentation = native.HPACKRepresentation
 type HPACKHuffmanMode = native.HPACKHuffmanMode
 type HPACKNameReferencePolicy = native.HPACKNameReferencePolicy
 type PriorityRequest = native.PriorityRequest
+type ReceiveWindowUpdateInfo = native.ReceiveWindowUpdateInfo
 
 const (
 	HPACKDefault              = native.HPACKDefault
@@ -25,8 +26,8 @@ const (
 )
 
 func (t *Transport) fingerprint() *http.HTTP2Fingerprint {
-	if len(t.Settings) == 0 && t.StreamID == 0 && t.ConnectionFlow == 0 && t.PriorityParam.IsZero() && len(t.PriorityFrames) == 0 && t.HPACK == nil && t.HeaderPriority == nil && !t.ChainStreamDependencies {
+	if len(t.Settings) == 0 && t.StreamID == 0 && t.ConnectionFlow == 0 && t.PriorityParam.IsZero() && len(t.PriorityFrames) == 0 && t.HPACK == nil && t.HeaderPriority == nil && !t.ChainStreamDependencies && t.StreamReceiveWindow == 0 && t.ReceiveWindowUpdatePolicy == nil {
 		return nil
 	}
-	return (&http.HTTP2Fingerprint{Settings: t.Settings, StreamID: t.StreamID, ConnectionFlow: t.ConnectionFlow, PriorityParam: t.PriorityParam, PriorityFrames: t.PriorityFrames, HPACK: t.HPACK, HeaderPriority: t.HeaderPriority, ChainStreamDependencies: t.ChainStreamDependencies}).Clone()
+	return (&http.HTTP2Fingerprint{Settings: t.Settings, StreamID: t.StreamID, ConnectionFlow: t.ConnectionFlow, PriorityParam: t.PriorityParam, PriorityFrames: t.PriorityFrames, HPACK: t.HPACK, HeaderPriority: t.HeaderPriority, ChainStreamDependencies: t.ChainStreamDependencies, StreamReceiveWindow: t.StreamReceiveWindow, ReceiveWindowUpdatePolicy: t.ReceiveWindowUpdatePolicy}).Clone()
 }
