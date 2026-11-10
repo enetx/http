@@ -16,7 +16,11 @@
     "http2/frame_aliases.go",
     "http2/gen_aliases.go",
     "internal/godebug/godebug.go",
-    "headerorder/headerorder.go"
+    "headerorder/headerorder.go",
+    "transport_preconnect.go",
+    "http2/transport_preconnect.go",
+    "tests/http1/preconnect_test.go",
+    "tests/http2/preconnect_test.go"
   ],
   "omitted_go_files": [
     "servemux121.go",

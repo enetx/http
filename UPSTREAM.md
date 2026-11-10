@@ -161,3 +161,19 @@ unnecessary patch against the standard-library baseline.
 
 `headerorder` exports the existing internal sorter for the separate QUIC module.
 Keep its adapter small and preserve the shared wire-order tests when updating.
+
+## Connection preparation
+
+`transport_preconnect.go` adds `Transport.Preconnect(*Request)` as an isolated
+adapter around the native connection acquisition and idle-pool return paths.
+It performs no application request or body access. HTTP/2 initialization and proxy
+handshakes follow the normal transport. `http2/transport_preconnect.go` supplies
+the existing wrapper's dial context before delegating, preserving custom TLS,
+SETTINGS and native pooling without modifying upstream transport files.
+
+Preparation does not reserve the connection; subsequent RoundTrip still applies
+native pool limits and retry rules. Keep-alives are required, and custom HTTP/2
+ConnPool implementations are unsupported. Cancellation retains native shared-dial
+semantics: detached TCP dials may finish and become idle. CloseIdleConnections
+also cancels abandoned native dials. Public tests cover body isolation, HTTP/1
+and HTTP/2 reuse, validation and cancellation.
