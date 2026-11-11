@@ -501,7 +501,7 @@ func validPseudoPath(v string) bool {
 
 func validateHeaders(hdrs map[string][]string) string {
 	for k, vv := range hdrs {
-		if k == HeaderOrderKey || k == PHeaderOrderKey {
+		if isHeaderMetadata(k) {
 			continue
 		}
 		if !httpguts.ValidHeaderFieldName(k) && k != ":protocol" {

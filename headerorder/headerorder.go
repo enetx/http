@@ -7,9 +7,14 @@ import "github.com/enetx/http/internal/headerorder"
 const (
 	HeaderOrderKey  = headerorder.HeaderOrderKey
 	PHeaderOrderKey = headerorder.PHeaderOrderKey
+	HeaderCaseKey   = headerorder.HeaderCaseKey
 )
 
 type Field = headerorder.Field
+
+// IsMetadataKey identifies private ordering and spelling controls, which must
+// be excluded from field validation and encoding by every protocol adapter.
+func IsMetadataKey(key string) bool { return headerorder.IsMetadataKey(key) }
 
 func Indices(names []string) map[string]int { return headerorder.Indices(names) }
 

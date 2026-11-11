@@ -8,7 +8,7 @@ import (
 )
 
 func TestSorted(t *testing.T) {
-	h := map[string][]string{"X-Z": {"z1", "z2"}, "X-A": {"a"}, "X-M": {"m"}, HeaderOrderKey: {"x-z"}, PHeaderOrderKey: {":method"}}
+	h := map[string][]string{"X-Z": {"z1", "z2"}, "X-A": {"a"}, "X-M": {"m"}, HeaderOrderKey: {"x-z"}, PHeaderOrderKey: {":method"}, HeaderCaseKey: {"x-z"}}
 	for _, tc := range []struct {
 		name    string
 		order   []string

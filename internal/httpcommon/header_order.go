@@ -11,7 +11,10 @@ import (
 const (
 	HeaderOrderKey  = "Header-Order:"
 	PHeaderOrderKey = "PHeader-Order:"
+	HeaderCaseKey   = headerorder.HeaderCaseKey
 )
+
+func isHeaderMetadata(key string) bool { return headerorder.IsMetadataKey(key) }
 
 func orderedRequestHeaders(req Request) []headerorder.Field {
 	order := headerorder.Indices(req.Header[HeaderOrderKey])

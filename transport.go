@@ -592,7 +592,7 @@ func validateHeaders(hdrs Header) string {
 	for k, vv := range hdrs {
 		if !httpguts.ValidHeaderFieldName(k) {
 			// Allow the HeaderOrderKey and PHeaderOrderKey magic string, this will be handled further.
-			if k == HeaderOrderKey || k == PHeaderOrderKey {
+			if isHeaderMetadata(k) {
 				continue
 			}
 			return fmt.Sprintf("field name %q", k)

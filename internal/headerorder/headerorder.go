@@ -9,7 +9,12 @@ import (
 const (
 	HeaderOrderKey  = "Header-Order:"
 	PHeaderOrderKey = "PHeader-Order:"
+	HeaderCaseKey   = "Header-Case:"
 )
+
+func IsMetadataKey(key string) bool {
+	return key == HeaderOrderKey || key == PHeaderOrderKey || key == HeaderCaseKey
+}
 
 type Field struct {
 	Key    string
@@ -32,7 +37,7 @@ func Indices(names []string) map[string]int {
 func Sorted(h map[string][]string, order map[string]int, exclude map[string]bool) []Field {
 	fields := make([]Field, 0, len(h))
 	for k, values := range h {
-		if k == HeaderOrderKey || k == PHeaderOrderKey || exclude[k] {
+		if IsMetadataKey(k) || exclude[k] {
 			continue
 		}
 		fields = append(fields, Field{k, values})

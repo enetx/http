@@ -14,7 +14,7 @@ under the workspace's archive directory as source snapshots.
 
 The retained behavior is covered by protocol and Surf regression tests:
 
-- `Header-Order:` and `PHeader-Order:` are metadata, bypass normal field validation
+- `Header-Order:`, `PHeader-Order:` and `Header-Case:` are metadata, bypass normal field validation
   where needed and never appear on the wire or in header-size accounting.
 - One stateless sorter in `internal/headerorder` handles HTTP/1 and HTTP/2.
   Its `headerorder` public adapter is also used by the separate QUIC module.
@@ -177,3 +177,13 @@ ConnPool implementations are unsupported. Cancellation retains native shared-dia
 semantics: detached TCP dials may finish and become idle. CloseIdleConnections
 also cancels abandoned native dials. Public tests cover body isolation, HTTP/1
 and HTTP/2 reuse, validation and cancellation.
+
+
+## Explicit HTTP/1 field spelling
+
+`HeaderCaseKey` lists exact field spellings selected by applications; other
+HTTP/1 fields retain canonical spelling. Invalid spellings are ignored and
+inputs are not mutated. Browser choices remain in Surf. The shared
+`headerorder.IsMetadataKey` classifier excludes all private controls from
+sorting and validation in HTTP/1, HTTP/2 and external HTTP/3 adapters. Changes
+stay in `header_order.go`, small header/transport hooks and the shared sorter.

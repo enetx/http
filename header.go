@@ -161,6 +161,7 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 	}
 
 	kvs := orderedHeaders(h, exclude, cl)
+	wireName := http1HeaderNames(h)
 
 	var formattedVals []string
 	for _, kv := range kvs {
@@ -174,7 +175,7 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 		for _, v := range kv.Values {
 			v = headerNewlineToSpace.Replace(v)
 			v = textproto.TrimString(v)
-			for _, s := range []string{CanonicalHeaderKey(kv.Key), ": ", v, "\r\n"} {
+			for _, s := range []string{wireName(kv.Key), ": ", v, "\r\n"} {
 				if _, err := ws.WriteString(s); err != nil {
 					return err
 				}
@@ -184,7 +185,7 @@ func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptra
 			}
 		}
 		if trace != nil && trace.WroteHeaderField != nil {
-			trace.WroteHeaderField(kv.Key, formattedVals)
+			trace.WroteHeaderField(wireName(kv.Key), formattedVals)
 			formattedVals = nil
 		}
 	}
