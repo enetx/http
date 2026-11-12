@@ -185,6 +185,9 @@ type Request struct {
 	Header              map[string][]string
 	Trailer             map[string][]string
 	ActualContentLength int64 // 0 means 0, -1 means unknown
+	// HasReplayBody records whether the original request provides GetBody. Only
+	// a known zero-length upload with an explicit length slot changes its framing.
+	HasReplayBody bool
 }
 
 // EncodeHeadersParam is parameters to EncodeHeaders.
@@ -370,7 +373,7 @@ func EncodeHeaders(ctx context.Context, param EncodeHeadersParam, headerf func(n
 				f(k, v)
 			}
 		}
-		if !didCL && shouldSendReqContentLength(req.Method, req.ActualContentLength) {
+		if !didCL && shouldSendRequestContentLength(req) {
 			f("content-length", strconv.FormatInt(req.ActualContentLength, 10))
 		}
 		if param.AddGzipHeader {

@@ -19,6 +19,11 @@ import (
 //
 // The keys should be in canonical form, as returned by
 // [CanonicalHeaderKey].
+//
+// For outgoing requests with an actual zero-length body, an explicitly nil or
+// empty Content-Length value slice suppresses the automatically generated field.
+// Field-name matching is case-insensitive. Positive or unknown body lengths
+// ignore this opt-out so framing continues to use the actual body length.
 type Header map[string][]string
 
 // Add adds the key, value pair to the header.
@@ -85,7 +90,7 @@ func (h Header) Write(w io.Writer, cl int64) error {
 }
 
 func (h Header) write(w io.Writer, trace *httptrace.ClientTrace, cl int64) error {
-	return h.writeSubset(w, nil, trace, cl)
+	return h.writeSubset(w, nil, trace, cl, false)
 }
 
 // Clone returns a copy of h or nil if h is nil.
@@ -149,18 +154,18 @@ func (w stringWriter) WriteString(s string) (n int, err error) {
 // If exclude is not nil, keys where exclude[key] == true are not written.
 // Keys are not canonicalized before checking the exclude map.
 func (h Header) WriteSubset(w io.Writer, exclude map[string]bool, cl int64) error {
-	return h.writeSubset(w, exclude, nil, cl)
+	return h.writeSubset(w, exclude, nil, cl, false)
 }
 
 // WriteSubset writes a header in wire format.
 // If exclude is not nil, keys where exclude[key] == true are not written.
-func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptrace.ClientTrace, cl int64) error {
+func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptrace.ClientTrace, cl int64, isRequest bool) error {
 	ws, ok := w.(io.StringWriter)
 	if !ok {
 		ws = stringWriter{w}
 	}
 
-	kvs := orderedHeaders(h, exclude, cl)
+	kvs := orderedHeaders(h, exclude, cl, isRequest)
 	wireName := http1HeaderNames(h)
 
 	var formattedVals []string

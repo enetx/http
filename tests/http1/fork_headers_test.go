@@ -39,7 +39,7 @@ func TestForkHTTP1RequestHeaderOrder(t *testing.T) {
 		chunked      bool
 		wantLength   string
 	}{
-		{name: "GET", method: "GET", wantLength: "0"},
+		{name: "GET", method: "GET"},
 		{name: "POST", method: "POST", body: strings.NewReader("abc"), wantLength: "3"},
 		{name: "empty POST", method: "POST", body: http.NoBody, wantLength: "0"},
 		{name: "chunked POST", method: "POST", body: io.NopCloser(strings.NewReader("abc")), chunked: true},

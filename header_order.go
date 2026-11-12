@@ -20,6 +20,11 @@ import (
 // According to RFC-2616 it is good practice to send general-header fields
 // first, followed by request-header or response-header fields and ending
 // with entity-header fields.
+//
+// For outgoing requests, a Content-Length slot can also frame a replayable empty
+// upload with Content-Length: 0 when Request.GetBody is non-nil. This does not
+// change the defaults for requests without such a slot or unknown-length bodies.
+// An explicitly nil Content-Length value slice still suppresses the zero field.
 const HeaderOrderKey = "Header-Order:"
 
 // PHeaderOrderKey is a magic key for setting http2 pseudo header order.
@@ -52,13 +57,48 @@ func http1HeaderNames(h Header) func(string) string {
 	}
 }
 
-// Only explicit ordered Content-Length requires a private copy. The shared
-// sorter filters metadata and leaves the caller's exclusion map untouched.
-func orderedHeaders(h Header, exclude map[string]bool, cl int64) []headerorder.Field {
+// Computed request framing and explicit ordered lengths use a private copy.
+// The shared sorter leaves the caller's headers and exclusion map untouched.
+func orderedHeaders(h Header, exclude map[string]bool, cl int64, isRequest bool) []headerorder.Field {
 	order := headerorder.Indices(h[HeaderOrderKey])
-	if _, ok := order["content-length"]; ok && cl >= 0 {
+	_, orderedLength := order["content-length"]
+	orderedLength = orderedLength && cl >= 0
+	omitLength := isRequest && omitZeroContentLength(h, cl)
+	copyLengthFields := orderedLength
+	if isRequest && !copyLengthFields {
+		for name := range h {
+			if strings.EqualFold(name, "content-length") {
+				copyLengthFields = true
+				break
+			}
+		}
+	}
+	if copyLengthFields {
 		h = h.Clone()
-		h["content-length"] = []string{strconv.FormatInt(cl, 10)}
+		if isRequest {
+			for name := range h {
+				if strings.EqualFold(name, "content-length") {
+					delete(h, name)
+				}
+			}
+		}
+		if orderedLength && !omitLength {
+			h["content-length"] = []string{strconv.FormatInt(cl, 10)}
+		}
 	}
 	return headerorder.Sorted(h, order, exclude)
+}
+
+// omitZeroContentLength honors an explicitly empty field only for a body whose
+// sanitized length is exactly zero. Positive and unknown lengths retain framing.
+func omitZeroContentLength(h Header, contentLength int64) bool {
+	if contentLength != 0 {
+		return false
+	}
+	for name, values := range h {
+		if strings.EqualFold(name, "content-length") && len(values) == 0 {
+			return true
+		}
+	}
+	return false
 }

@@ -71,6 +71,8 @@ type transferWriter struct {
 	IsResponse       bool
 	bodyReadError    error // any non-EOF error from reading Body
 
+	explicitEmptyBody bool // replayable zero-byte upload
+
 	FlushHeaders bool            // flush headers to network before body
 	ByteReadCh   chan readResult // non-nil if probeRequestBody called
 }
@@ -93,6 +95,7 @@ func newTransferWriter(r any) (t *transferWriter, err error) {
 		t.Body = rr.Body
 		t.BodyCloser = rr.Body
 		t.ContentLength = rr.outgoingLength()
+		t.explicitEmptyBody = rr.GetBody != nil && t.ContentLength == 0
 		if t.ContentLength < 0 && len(t.TransferEncoding) == 0 && t.shouldSendChunkedRequestBody() {
 			t.TransferEncoding = []string{"chunked"}
 		}
@@ -268,6 +271,14 @@ func (t *transferWriter) shouldSendContentLength() bool {
 	if t.ContentLength < 0 {
 		return false
 	}
+	if !t.IsResponse && omitZeroContentLength(t.Header, t.ContentLength) {
+		return false
+	}
+	if !t.IsResponse && t.explicitEmptyBody && slices.ContainsFunc(t.Header[HeaderOrderKey], func(name string) bool {
+		return strings.EqualFold(name, "content-length")
+	}) {
+		return true
+	}
 	// Many servers expect a Content-Length for these methods
 	if t.Method == "POST" || t.Method == "PUT" || t.Method == "PATCH" {
 		return true
@@ -297,7 +308,7 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 	// TransferEncoding)
 	if t.shouldSendContentLength() {
 		headers, hoexist := t.Header[HeaderOrderKey]
-		clexist := slices.Contains(headers, "content-length")
+		clexist := slices.ContainsFunc(headers, func(name string) bool { return strings.EqualFold(name, "content-length") })
 
 		if !hoexist || !clexist {
 			if _, err := io.WriteString(w, "Content-Length: "); err != nil {
@@ -312,7 +323,7 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 		}
 	} else if chunked(t.TransferEncoding) {
 		headers, hoexist := t.Header[HeaderOrderKey]
-		texist := slices.Contains(headers, "transfer-encoding")
+		texist := slices.ContainsFunc(headers, func(name string) bool { return strings.EqualFold(name, "transfer-encoding") })
 
 		if !hoexist || !texist {
 			if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
@@ -322,6 +333,9 @@ func (t *transferWriter) writeHeader(w io.Writer, trace *httptrace.ClientTrace) 
 				trace.WroteHeaderField("Transfer-Encoding", []string{"chunked"})
 			}
 		} else {
+			if !t.IsResponse {
+				t.Header = t.Header.Clone()
+			}
 			t.Header["transfer-encoding"] = []string{"chunked"}
 		}
 	}

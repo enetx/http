@@ -5,9 +5,19 @@ import "time"
 // ReceiveWindowUpdateInfo describes receive credit when the application returns
 // consumed bytes. The policy runs under the connection lock, must return promptly
 // and must be concurrency safe. It must not call back into the transport.
+// Returning false defers the update even when peer credit is exhausted. A custom
+// policy owns progress and must eventually release pending credit; nil retains
+// the native batching and exhausted-credit behavior.
 type ReceiveWindowUpdateInfo struct {
-	Window, Available, Pending int32
-	Elapsed                    time.Duration
+	// Window is the initial connection or stream receive window.
+	Window int32
+	// Available is credit still available to the peer. Zero does not imply an
+	// empty application read buffer: accepted DATA may remain unread.
+	Available int32
+	// Pending is consumed credit not yet returned in a WINDOW_UPDATE.
+	Pending int32
+	// Elapsed is time since policy initialization or the last emitted update.
+	Elapsed time.Duration
 }
 
 type receiveWindowUpdateState struct {
@@ -25,7 +35,7 @@ func (f *inflow) setUpdatePolicy(policy func(ReceiveWindowUpdateInfo) bool) {
 func (f *inflow) deferWindowUpdate() bool {
 	state := f.refresh
 	now := time.Now()
-	if !state.policy(ReceiveWindowUpdateInfo{Window: state.window, Available: f.avail, Pending: f.unsent, Elapsed: now.Sub(state.last)}) && f.avail > 0 {
+	if !state.policy(ReceiveWindowUpdateInfo{Window: state.window, Available: f.avail, Pending: f.unsent, Elapsed: now.Sub(state.last)}) {
 		return true
 	}
 	state.last = now

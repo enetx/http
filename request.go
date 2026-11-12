@@ -171,6 +171,8 @@ type Request struct {
 	// and Connection are automatically written when needed and
 	// values in Header may be ignored. See the documentation
 	// for the Request.Write method.
+	// An explicitly nil or empty Content-Length value slice suppresses that
+	// automatic field only when the actual outgoing body length is zero.
 	Header Header
 
 	// Body is the request's body.
@@ -567,6 +569,8 @@ const defaultUserAgent = "Go-http-client/1.1"
 //
 // Header values for Host, Content-Length, Transfer-Encoding,
 // and Trailer are not used; these are derived from other Request fields.
+// A nil or empty Content-Length value slice suppresses its automatic field only
+// when the outgoing body has an actual zero length.
 // If the Header does not contain a User-Agent value, Write uses
 // "Go-http-client/1.1".
 func (r *Request) Write(w io.Writer) error {
@@ -689,7 +693,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	// Header lines
 	// Write Host immediately unless it's in HeaderOrder (will be written in sorted order by writeSubset)
 	headerOrder, hoexist := r.Header[HeaderOrderKey]
-	hostInOrder := hoexist && slices.Contains(headerOrder, "host")
+	hostInOrder := hoexist && slices.ContainsFunc(headerOrder, func(name string) bool { return strings.EqualFold(name, "host") })
 
 	if !hostInOrder {
 		_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
@@ -727,17 +731,23 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	}
 
 	// If host is in HeaderOrder, add its value to headers so writeSubset can write it in order
+	headers := tw.Header
 	if hostInOrder {
-		r.Header["host"] = []string{host}
+		headers = headers.Clone()
+		headers["host"] = []string{host}
 	}
 
-	err = r.Header.writeSubset(w, reqWriteExcludeHeader, trace, tw.ContentLength)
+	contentLength := int64(-1)
+	if tw.shouldSendContentLength() {
+		contentLength = tw.ContentLength
+	}
+	err = headers.writeSubset(w, reqWriteExcludeHeader, trace, contentLength, true)
 	if err != nil {
 		return err
 	}
 
 	if extraHeaders != nil {
-		err = extraHeaders.write(w, trace, tw.ContentLength)
+		err = extraHeaders.write(w, trace, contentLength)
 		if err != nil {
 			return err
 		}

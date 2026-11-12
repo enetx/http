@@ -22,7 +22,7 @@ The retained behavior is covered by protocol and Surf regression tests:
   Multiple values keep their order. There are no shared mutable exclusion maps,
   retained pool order or global header locks.
 - HTTP/1 preserves canonical wire names and ordered Host, User-Agent,
-  Content-Length (including explicit zero) and chunked Transfer-Encoding.
+  computed request Content-Length and chunked Transfer-Encoding.
   Response header ordering remains opt-in through `EnableHeaderOrder`.
 - Cookies preserve embedded double quotes. Current cookie-count limits remain
   available through the small standalone GODEBUG reader.
@@ -58,6 +58,7 @@ a request body, and an additional request over the upgraded connection.
 | --- | --- |
 | Shared sorting and metadata | `internal/headerorder` |
 | HTTP/1 ordering glue | `header_order.go`; small hooks in `header.go`, `request.go`, `transfer.go`, `server.go` |
+| Computed request Content-Length | `header_order.go`, `request.go`, `transfer.go`, `internal/httpcommon/header_order.go`; narrow codec and HTTP/2 transport hooks |
 | HTTP/2 wire configuration | `http2_fingerprint.go`, `internal/http2/fingerprint.go`, `http2/fingerprint.go` |
 | HTTP/2 request header policy | `internal/http2/header_policy.go`, `hpack_literal.go`, `indexed_fields.go`; narrow hooks in `transport.go` |
 | HTTP/2 receive-credit batching and initial per-stream credit increase | `internal/http2/receive_window.go`; hooks in `flow.go`, `fingerprint.go`, `transport.go`; public fingerprint aliases |
@@ -71,6 +72,60 @@ version-switch implementations for Go <1.27, private Go runtime hooks, deprecate
 scheduler no-ops, or unrelated profiling/toolchain/proxy packages. Keep the Go
 source files needed by Surf and the HTTP/2 dependency closure. Server,
 `httptest` and `cookiejar` are required by the active tests and examples.
+
+## HTTP/2 receive-credit policy
+
+An installed `ReceiveWindowUpdatePolicy` owns the decision to return accumulated
+credit for its connection or stream. Returning false defers WINDOW_UPDATE even
+when the peer's available window is zero. `Available` describes remaining peer
+credit, not unread response-buffer bytes: the read loop can accept the full
+advertised window before the application has drained that data. `Pending` is
+consumed credit that has not yet been returned to the peer. Deferred callbacks
+do not reset the elapsed-time baseline; only an emitted update does.
+
+The callback must eventually release enough pending credit for progress. An
+always-false policy deliberately withholds credit and can stall the peer after
+the read buffer is drained; emergency release, if wanted, belongs in the policy.
+The engine does not override false with an implicit zero-window exception.
+Nil policy keeps the upstream batching thresholds and immediate exhausted-credit
+recovery unchanged. Maximum-window and over-credit checks remain independent
+of the policy. No browser threshold or timing value is selected here.
+
+`internal/http2/receive_window_test.go` covers strict threshold boundaries with
+an exhausted window and buffered data, repeated refresh cycles, explicit policy
+authority, unchanged deferred timestamps, optional emergency decisions, native
+nil-policy recovery and overflow protection. Surf owns browser-source comparisons
+and actual WINDOW_UPDATE wire tests.
+
+## Request Content-Length controls
+
+An explicit `content-length` position in `HeaderOrderKey` places the computed
+request length in that position when framing requires the field. Supplied header
+values never replace the actual body length. Field names and order slots match
+case-insensitively; an ordered field is emitted once. A slot alone does not add
+CL:0 to an ordinary empty GET or HEAD.
+
+A nil or empty Content-Length value slice suppresses automatic CL:0 only when
+the sanitized outgoing body length is exactly zero. Positive and unknown lengths
+ignore this opt-out and retain their normal framing. A slice containing one empty
+string is not the opt-out. For a known zero-length upload, a non-nil
+`Request.GetBody` plus an explicit length slot can select CL:0 on methods that
+otherwise omit it; header preparation does not call GetBody. The nil/empty
+opt-out still takes precedence. With neither an explicit slot nor a nil/empty
+slice, upstream method and framing defaults remain unchanged.
+
+The request-only HTTP/1 path in [request.go](request.go) passes a negative length
+sentinel when [transfer.go](transfer.go) decides not to send the field.
+[header_order.go](header_order.go) uses private copies for computed framing,
+including ordered Host and chunked encoding. The zero-length opt-out does not
+change response encoding or the explicit length passed to `Header.Write`.
+HTTP/2 carries GetBody presence through
+[internal/http2/transport.go](internal/http2/transport.go) into the shared
+[request codec](internal/httpcommon/httpcommon.go); its
+[ordering helper](internal/httpcommon/header_order.go) applies the same rules to
+both ordered synthesis and the implicit-field fallback. Keep these small hooks
+when comparing the request framing code with the sources pinned in
+[upstream.json](upstream.json). Browser values and profile policy stay in Surf.
 
 ## Update procedure
 
@@ -121,6 +176,12 @@ table-size updates, eviction, static and dynamic name references and Huffman mod
 
 `tests/http1/fork_headers_test.go` exercises HTTP/1 wire order, generated length/encoding,
 response opt-in, input immutability, independent orders and embedded cookie quotes.
+[tests/http1/request_content_length_test.go](tests/http1/request_content_length_test.go)
+and [internal/http2/request_content_length_test.go](internal/http2/request_content_length_test.go)
+cover nil/empty controls, replayable empty uploads, computed positive lengths,
+unknown streams, stale header values, case aliases, absent/unlisted/ordered slots
+and unchanged inputs. HTTP/1 tests parse the resulting request bytes and separately
+check unchanged response and `Header.Write` behavior; HTTP/2 tests decode HPACK.
 `tests/http2/fingerprint_test.go` checks actual preface/settings/priority/window/header
 bytes through both the public adapter and native `HTTP2Config`, decoder limits,
 invalid configuration and unknown frame gaps. Shared sorting, size accounting

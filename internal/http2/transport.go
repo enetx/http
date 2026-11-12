@@ -1477,6 +1477,7 @@ func encodeRequestHeaders(req *ClientRequest, addGzipHeader bool, peerMaxHeaderL
 			Host:                req.Host,
 			Method:              req.Method,
 			ActualContentLength: actualContentLength(req),
+			HasReplayBody:       req.GetBody != nil,
 		},
 		AddGzipHeader:         addGzipHeader,
 		PeerMaxHeaderListSize: peerMaxHeaderListSize,

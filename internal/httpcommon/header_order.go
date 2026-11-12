@@ -24,10 +24,38 @@ func orderedRequestHeaders(req Request) []headerorder.Field {
 			delete(headers, k)
 		}
 	}
-	if _, ok := order["content-length"]; ok && shouldSendReqContentLength(req.Method, req.ActualContentLength) {
+	if _, ok := order["content-length"]; ok && shouldSendRequestContentLength(req) {
 		headers["content-length"] = []string{strconv.FormatInt(req.ActualContentLength, 10)}
 	}
 	return headerorder.Sorted(headers, order, nil)
+}
+
+func shouldSendRequestContentLength(req Request) bool {
+	if omitZeroContentLength(req.Header, req.ActualContentLength) {
+		return false
+	}
+	if req.ActualContentLength == 0 && req.HasReplayBody {
+		for _, name := range req.Header[HeaderOrderKey] {
+			if strings.EqualFold(name, "content-length") {
+				return true
+			}
+		}
+	}
+	return shouldSendReqContentLength(req.Method, req.ActualContentLength)
+}
+
+// An explicitly empty field opts out only when the sanitized body length is zero.
+// It never changes framing for a nonempty or unknown-length body.
+func omitZeroContentLength(headers map[string][]string, contentLength int64) bool {
+	if contentLength != 0 {
+		return false
+	}
+	for name, values := range headers {
+		if strings.EqualFold(name, "content-length") && len(values) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // Return false to retain the upstream pseudo-header defaults when no order is supplied.
