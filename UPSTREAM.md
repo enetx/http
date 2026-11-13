@@ -248,3 +248,20 @@ inputs are not mutated. Browser choices remain in Surf. The shared
 `headerorder.IsMetadataKey` classifier excludes all private controls from
 sorting and validation in HTTP/1, HTTP/2 and external HTTP/3 adapters. Changes
 stay in `header_order.go`, small header/transport hooks and the shared sorter.
+
+## Protocol selection and request headers
+
+`Transport.PrepareHeaders` is an optional callback on a private request, called
+for the actual HTTP major version before transmission. Its helper is isolated
+in `transport_header_policy.go`; one HTTP/1 hook and the HTTP/2 request adapter
+cover fresh and cached connections. Header validation, body closure and stream
+reservation cleanup remain native. Context metadata and the prepared response
+request are retained for redirects; a nil callback keeps the original path.
+Keep the public wire, clone, streaming-body and invalid-header regressions when
+merging upstream.
+
+A linked `http2.Transport` with HTTP/1 explicitly enabled preserves a negotiated
+HTTP/1 socket in the linked transport's normal pool. Its dial followers stop
+coalescing with a non-multiplexed connection rather than waiting for that
+request's response. HTTP/2-only configurations retain their existing path.
+These hooks contain no browser settings or TLS implementation dependency.

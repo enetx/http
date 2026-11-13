@@ -318,19 +318,21 @@ func (rt http2ErringRoundTripper) RoundTrip(*Request) (*Response, error) { retur
 
 func http2RoundTrip(req *Request, rt func(*http2.ClientRequest) (*http2.ClientResponse, error)) (*Response, error) {
 	resp := &Response{}
+	preparedRequest := req
 	cresp, err := rt(&http2.ClientRequest{
-		Context:       req.Context(),
-		Method:        req.Method,
-		URL:           req.URL,
-		Header:        http2.Header(req.Header),
-		Trailer:       http2.Header(req.Trailer),
-		Body:          req.Body,
-		Host:          req.Host,
-		GetBody:       req.GetBody,
-		ContentLength: req.ContentLength,
-		Cancel:        req.Cancel,
-		Close:         req.Close,
-		ResTrailer:    (*http2.Header)(&resp.Trailer),
+		Context:        req.Context(),
+		Method:         req.Method,
+		URL:            req.URL,
+		Header:         http2.Header(req.Header),
+		PrepareHeaders: http2RequestHeaderPolicy(req, &preparedRequest),
+		Trailer:        http2.Header(req.Trailer),
+		Body:           req.Body,
+		Host:           req.Host,
+		GetBody:        req.GetBody,
+		ContentLength:  req.ContentLength,
+		Cancel:         req.Cancel,
+		Close:          req.Close,
+		ResTrailer:     (*http2.Header)(&resp.Trailer),
 	})
 	if err != nil {
 		return nil, err
@@ -346,7 +348,7 @@ func http2RoundTrip(req *Request, rt func(*http2.ClientRequest) (*http2.ClientRe
 	resp.Trailer = Header(cresp.Trailer)
 	resp.Body = cresp.Body
 	resp.TLS = cresp.TLS
-	resp.Request = req
+	resp.Request = preparedRequest
 	return resp, nil
 }
 
@@ -411,22 +413,34 @@ func (t *Transport) http2NewClientConnFromContext(ctx context.Context) (*ClientC
 	return cc, nil
 }
 
-// http2ExternalDial creates a new HTTP/2 connection,
+// http2ExternalDial creates a connection with an external HTTP/2 dialer,
 // using the x/net/http2.Transport's dial functions.
 //
 // This is used when the user has called x/net/http2.Transport.RoundTrip.
 // If the RoundTrip needs to create a new connection,
 // the historical behavior is for it to use the http2.Transport's DialTLS or DialTLSContext
 // functions, and not any dial functions on the http.Transport.
-func (t *Transport) http2ExternalDial(ctx context.Context, cm connectMethod) (RoundTripper, error) {
+func (t *Transport) http2ExternalDial(ctx context.Context, cm connectMethod) (net.Conn, RoundTripper, error) {
 	if t.h2Config == nil {
-		return nil, errors.ErrUnsupported
+		return nil, nil, errors.ErrUnsupported
 	}
 	nc, err := t.h2Config.DialFromContext(ctx, "tcp", cm.targetAddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return t.http2AddConn(cm.targetScheme, cm.targetAddr, nc)
+	// A linked HTTP transport can enable both protocols. Keep an already
+	// negotiated HTTP/1 connection in its ordinary pool instead of creating an
+	// HTTP/2 client over it. Standalone HTTP/2-only transports retain their path.
+	if t.Protocols != nil && t.Protocols.HTTP1() && cm.targetScheme == "https" {
+		if secure, ok := nc.(interface{ ConnectionState() tls.ConnectionState }); ok {
+			switch secure.ConnectionState().NegotiatedProtocol {
+			case "", "http/1.1":
+				return nc, nil, nil
+			}
+		}
+	}
+	rt, err := t.http2AddConn(cm.targetScheme, cm.targetAddr, nc)
+	return nil, rt, err
 }
 
 type http2RoundTripper struct {
@@ -561,4 +575,21 @@ func (t transportConfig) HTTP2Config() http2.Config {
 func transportFromH1Transport(t *Transport) any {
 	t.nextProtoOnce.Do(t.onceSetNextProtoDefaults)
 	return t.h2Transport
+}
+
+// http2RequestHeaderPolicy runs only after an actual HTTP/2 connection is
+// selected, including the cached-connection path that skips Transport.getConn.
+func http2RequestHeaderPolicy(req *Request, prepared **Request) func() (http2.Header, context.Context, error) {
+	policy, _ := req.Context().Value(requestHeaderPolicyKey{}).(func(*Request, int))
+	if policy == nil {
+		return nil
+	}
+	return func() (http2.Header, context.Context, error) {
+		request, err := prepareRequestHeaders(req, policy, 2)
+		if err != nil {
+			return nil, nil, err
+		}
+		*prepared = request
+		return http2.Header(request.Header), request.Context(), nil
+	}
 }

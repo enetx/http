@@ -96,6 +96,15 @@ const DefaultMaxIdleConnsPerHost = 2
 // value is a zero-length slice, the request is treated as idempotent but the
 // header is not sent on the wire.
 type Transport struct {
+	// PrepareHeaders optionally adjusts headers on a private request after a
+	// connection has been selected and before the request is sent. protocol is
+	// the HTTP major version (1 or 2). The callback may change Header and add
+	// Context values; it must preserve routing, body and cancellation. It must
+	// be safe for concurrent use. Updated headers are validated normally.
+	// It runs for each transmission attempt, including connection reuse and
+	// retries, and is not called by Preconnect. Nil preserves native behavior.
+	PrepareHeaders func(request *Request, protocol int)
+
 	idleMu       sync.Mutex
 	closeIdle    bool                                // user has requested to close all idle conns
 	idleConn     map[connectMethodKey][]*persistConn // most recently used at end
@@ -365,6 +374,7 @@ func (t *Transport) Clone() *Transport {
 		ForceAttemptHTTP2:      t.ForceAttemptHTTP2,
 		WriteBufferSize:        t.WriteBufferSize,
 		ReadBufferSize:         t.ReadBufferSize,
+		PrepareHeaders:         t.PrepareHeaders,
 	}
 	if t.TLSClientConfig != nil {
 		t2.TLSClientConfig = t.TLSClientConfig.Clone()
@@ -639,6 +649,9 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 	}
 
 	origReq := req
+	if t.PrepareHeaders != nil {
+		req = req.WithContext(context.WithValue(req.Context(), requestHeaderPolicyKey{}, t.PrepareHeaders))
+	}
 	req = setupRewindBody(req)
 
 	if altRT := t.alternateRoundTripper(req); altRT != nil {
@@ -718,10 +731,20 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 			return nil, err
 		}
 
+		if t.PrepareHeaders != nil && pconn.alt == nil {
+			prepared, prepareErr := prepareRequestHeaders(req, t.PrepareHeaders, 1)
+			if prepareErr != nil {
+				t.putOrCloseIdleConn(pconn)
+				req.closeBody()
+				return nil, prepareErr
+			}
+			treq.Request = prepared
+		}
+
 		var resp *Response
 		if pconn.alt != nil {
 			// HTTP/2 path.
-			resp, err = pconn.alt.RoundTrip(req)
+			resp, err = pconn.alt.RoundTrip(treq.Request)
 		} else {
 			resp, err = pconn.roundTrip(treq)
 		}
@@ -734,7 +757,12 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 				// canceling the context after the response body is read.
 				cancel(errRequestDone)
 			}
-			resp.Request = origReq
+			if t.PrepareHeaders == nil || resp.Request == nil {
+				resp.Request = origReq
+			}
+			if t.PrepareHeaders != nil && pconn.alt == nil {
+				resp.Request = treq.Request
+			}
 			return resp, nil
 		}
 
@@ -1877,19 +1905,22 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod, isClientConn
 		return err
 	}
 
-	if rt, err := t.http2ExternalDial(ctx, cm); err != errors.ErrUnsupported {
-		if err != nil {
-			return nil, err
-		}
-		return &persistConn{t: t, cacheKey: pconn.cacheKey, alt: rt}, nil
+	externalConn, externalRT, externalErr := t.http2ExternalDial(ctx, cm)
+	if externalErr != nil && externalErr != errors.ErrUnsupported {
+		return nil, externalErr
 	}
-
-	if cm.scheme() == "https" && t.hasCustomTLSDialer() {
-		var err error
-		pconn.conn, err = t.customDialTLS(ctx, "tcp", cm.addr())
-		if err != nil {
-			return nil, wrapErr(err)
+	if externalRT != nil {
+		return &persistConn{t: t, cacheKey: pconn.cacheKey, alt: externalRT}, nil
+	}
+	pconn.conn = externalConn
+	if cm.scheme() == "https" && (externalConn != nil || t.hasCustomTLSDialer()) {
+		if pconn.conn == nil {
+			pconn.conn, err = t.customDialTLS(ctx, "tcp", cm.addr())
+			if err != nil {
+				return nil, wrapErr(err)
+			}
 		}
+
 		type connectionStater interface {
 			ConnectionState() tls.ConnectionState
 		}

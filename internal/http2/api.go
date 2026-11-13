@@ -41,18 +41,21 @@ var (
 
 // A ClientRequest is a Request used by the HTTP/2 client (Transport).
 type ClientRequest struct {
-	Context       context.Context
-	Method        string
-	URL           *url.URL
-	Header        Header
-	Trailer       Header
-	Body          io.ReadCloser
-	Host          string
-	GetBody       func() (io.ReadCloser, error)
-	ContentLength int64
-	Cancel        <-chan struct{}
-	Close         bool
-	ResTrailer    *Header
+	// PrepareHeaders optionally returns private headers and request metadata
+	// after connection selection. The owning HTTP adapter validates the result.
+	PrepareHeaders func() (Header, context.Context, error)
+	Context        context.Context
+	Method         string
+	URL            *url.URL
+	Header         Header
+	Trailer        Header
+	Body           io.ReadCloser
+	Host           string
+	GetBody        func() (io.ReadCloser, error)
+	ContentLength  int64
+	Cancel         <-chan struct{}
+	Close          bool
+	ResTrailer     *Header
 
 	// Include the per-request stream in the ClientRequest to avoid an allocation.
 	stream clientStream
@@ -64,18 +67,19 @@ type ClientRequest struct {
 // We can drop it if we ever get rid of or rework that function.
 func (req *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
-		Context:       req.Context,
-		Method:        req.Method,
-		URL:           req.URL,
-		Header:        req.Header,
-		Trailer:       req.Trailer,
-		Body:          req.Body,
-		Host:          req.Host,
-		GetBody:       req.GetBody,
-		ContentLength: req.ContentLength,
-		Cancel:        req.Cancel,
-		Close:         req.Close,
-		ResTrailer:    req.ResTrailer,
+		Context:        req.Context,
+		Method:         req.Method,
+		URL:            req.URL,
+		Header:         req.Header,
+		PrepareHeaders: req.PrepareHeaders,
+		Trailer:        req.Trailer,
+		Body:           req.Body,
+		Host:           req.Host,
+		GetBody:        req.GetBody,
+		ContentLength:  req.ContentLength,
+		Cancel:         req.Cancel,
+		Close:          req.Close,
+		ResTrailer:     req.ResTrailer,
 	}
 }
 

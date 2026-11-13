@@ -7,7 +7,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -16,11 +20,14 @@ jobs:
           check-latest: true
           cache: true
       - name: Check formatting
+        shell: bash
         run: test -z "$(gofmt -l .)"
       - name: Check generated HTTP/2 aliases
         run: |
           go generate ./http2
           git diff --exit-code -- http2/frame_aliases.go
+      - name: Check module files
+        run: go mod tidy -diff
       - name: Test
         run: go test -race -count=1 ./...
       - name: Vet

@@ -139,6 +139,7 @@ type transportInternal struct {
 type transportDialState struct {
 	dialc   chan struct{} // close when dial returns
 	dialErr error         // dial result, set before dialc is closed
+	http1   bool          // an HTTP/1 connection cannot multiplex the waiting requests
 	rtdonec chan struct{} // closed when RoundTrip initiating the dial returns
 }
 
@@ -314,6 +315,10 @@ func (t *Transport) dialForRoundTrip(ctx context.Context, dial *transportRoundTr
 				if leader.dialErr != nil {
 					return nil, leader.dialErr
 				}
+				if leader.http1 {
+					done = true
+					continue
+				}
 				leaderdialc = nil
 			case <-leaderrtdonec:
 				// The leader's RoundTrip completed.
@@ -353,6 +358,12 @@ func (t *Transport) dialForRoundTrip(ctx context.Context, dial *transportRoundTr
 		}
 	}
 	nc, err := t.dialTLS(ctx, network, address, tlsConf)
+	if err == nil && t.lazyt1.Protocols != nil && t.lazyt1.Protocols.HTTP1() {
+		if secure, ok := nc.(interface{ ConnectionState() tls.ConnectionState }); ok {
+			protocol := secure.ConnectionState().NegotiatedProtocol
+			state.http1 = protocol == "" || protocol == "http/1.1"
+		}
+	}
 
 	// Remove this dial from t.dials, so future dial attempts will not coalesce with it.
 	t.dialMu.Lock()

@@ -1143,6 +1143,18 @@ func (cc *ClientConn) RoundTrip(req *ClientRequest) (*ClientResponse, error) {
 }
 
 func (cc *ClientConn) roundTrip(req *ClientRequest, streamf func(*clientStream)) (*ClientResponse, error) {
+	if req.PrepareHeaders != nil {
+		headers, ctx, err := req.PrepareHeaders()
+		if err != nil {
+			cc.decrStreamReservations()
+			if req.Body != nil {
+				req.Body.Close()
+			}
+			return nil, err
+		}
+		req.Header = headers
+		req.Context = ctx
+	}
 	ctx := req.Context
 	req.stream = clientStream{
 		cc:                   cc,

@@ -27,8 +27,8 @@ func (t *Transport) configureHTTP2(protocols Protocols) {}
 func (t *Transport) http2AddConn(scheme, authority string, nc net.Conn) (RoundTripper, error) {
 	return nil, errors.ErrUnsupported
 }
-func (t *Transport) http2ExternalDial(ctx context.Context, cm connectMethod) (RoundTripper, error) {
-	return nil, errors.ErrUnsupported
+func (t *Transport) http2ExternalDial(ctx context.Context, cm connectMethod) (net.Conn, RoundTripper, error) {
+	return nil, nil, errors.ErrUnsupported
 }
 func (t *Transport) http2NewClientConn(nc net.Conn, internalStateHook func()) (RoundTripper, error) {
 	return nil, errors.ErrUnsupported
