@@ -60,6 +60,7 @@ a request body, and an additional request over the upgraded connection.
 | HTTP/1 ordering glue | `header_order.go`; small hooks in `header.go`, `request.go`, `transfer.go`, `server.go` |
 | Computed request Content-Length | `header_order.go`, `request.go`, `transfer.go`, `internal/httpcommon/header_order.go`; narrow codec and HTTP/2 transport hooks |
 | HTTP/2 wire configuration | `http2_fingerprint.go`, `internal/http2/fingerprint.go`, `http2/fingerprint.go` |
+| HTTP/2 peer-error policy | `internal/http2/connection_error_policy.go`; two read-loop hooks and public fingerprint/transport adapters |
 | HTTP/2 request header policy | `internal/http2/header_policy.go`, `hpack_literal.go`, `indexed_fields.go`; narrow hooks in `transport.go` |
 | HTTP/2 receive-credit batching and initial per-stream credit increase | `internal/http2/receive_window.go`; hooks in `flow.go`, `fingerprint.go`, `transport.go`; public fingerprint aliases |
 | Shared HTTP/2 header codec hooks | `internal/httpcommon/header_order.go` |
@@ -273,3 +274,21 @@ HTTP/1 socket in the linked transport's normal pool. Its dial followers stop
 coalescing with a non-multiplexed connection rather than waiting for that
 request's response. HTTP/2-only configurations retain their existing path.
 These hooks contain no browser settings or TLS implementation dependency.
+
+## HTTP/2 peer-error shutdown policy
+
+`HTTP2Fingerprint.ConnectionErrorPolicy` (also available on `http2.Transport`)
+receives the underlying connection, accepted frame type, peer error code and
+reset stream ID. Returning true immediately retires that connection from the
+pool and reports the peer error to active requests, without sending GOAWAY in
+reply. RST_STREAM for an inactive stream is ignored before policy evaluation.
+Callbacks run on the reader without connection locks and must not block or
+operate on the connection. Nil keeps the native handling, including GOAWAY
+LastStreamID semantics and stream-local resets. No browser code, cache capacity,
+origin key or retry decision lives in the engine.
+
+`tests/http2/connection_error_policy_test.go` reads actual TCP frames through
+both the public adapter and native transport. Its concurrent-stream matrix
+checks unchanged nil-policy behavior, promoted resets/GOAWAY, error identity
+and absence of an outgoing GOAWAY. Surf owns the Chrome-specific policy and
+its TLS/proxy/header/body regressions.

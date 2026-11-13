@@ -42,6 +42,10 @@ func ConfigureTransports(t1 *http.Transport) (*Transport, error) {
 // A Transport internally caches connections to servers. It is safe
 // for concurrent use by multiple goroutines.
 type Transport struct {
+	// ConnectionErrorPolicy can promote a peer stream error or GOAWAY to
+	// immediate connection shutdown. Nil retains native HTTP/2 handling.
+	// See ConnectionErrorInfo and http.HTTP2Fingerprint.ConnectionErrorPolicy.
+	ConnectionErrorPolicy     func(ConnectionErrorInfo) bool
 	StreamReceiveWindow       uint32
 	ReceiveWindowUpdatePolicy func(ReceiveWindowUpdateInfo) bool
 	// Initial HTTP/2 wire representation, preserved from the original fork.

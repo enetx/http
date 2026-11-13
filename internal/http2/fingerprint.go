@@ -2,12 +2,27 @@ package http2
 
 import (
 	"fmt"
+	"net"
 	"slices"
 )
+
+// ConnectionErrorInfo describes a peer error before stream or connection shutdown.
+type ConnectionErrorInfo struct {
+	Conn      net.Conn  // Underlying connection; do not read, write or close it from the policy.
+	FrameType FrameType // FrameRSTStream or FrameGoAway.
+	StreamID  uint32    // Reset stream ID; zero for GOAWAY.
+	Code      ErrCode   // Error code sent by the peer.
+}
 
 // Fingerprint controls the client's HTTP/2 connection and request representation.
 // A nil Fingerprint retains the upstream defaults.
 type Fingerprint struct {
+	// ConnectionErrorPolicy promotes a peer RST_STREAM or GOAWAY to immediate
+	// connection shutdown when it returns true. Active requests receive the
+	// peer error; no GOAWAY is sent in reply. Nil retains native handling.
+	// Called on the read loop without connection locks; it must not block or
+	// mutate Conn. RST_STREAM for an inactive stream does not invoke it.
+	ConnectionErrorPolicy func(ConnectionErrorInfo) bool
 	// StreamReceiveWindow increases client-created streams with an initial
 	// WINDOW_UPDATE after HEADERS, independently of SETTINGS_INITIAL_WINDOW_SIZE.
 	StreamReceiveWindow       uint32

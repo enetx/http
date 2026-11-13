@@ -2737,6 +2737,9 @@ func (rl *clientConnReadLoop) processGoAway(f *GoAwayFrame) error {
 			fn("recv_goaway_" + f.ErrCode.stringToken())
 		}
 	}
+	if rl.closeForPeerError(FrameGoAway, 0, f.ErrCode) {
+		return GoAwayError{LastStreamID: f.LastStreamID, ErrCode: f.ErrCode, DebugData: string(f.DebugData())}
+	}
 
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
@@ -2909,6 +2912,9 @@ func (rl *clientConnReadLoop) processResetStream(f *RSTStreamFrame) error {
 	}
 	if fn := cs.cc.fr.countError; fn != nil {
 		fn("recv_rststream_" + f.ErrCode.stringToken())
+	}
+	if rl.closeForPeerError(FrameRSTStream, f.StreamID, f.ErrCode) {
+		return serr
 	}
 	cs.abortStream(serr)
 
