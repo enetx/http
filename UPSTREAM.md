@@ -1,7 +1,7 @@
 # Upstream maintenance
 
 The supported baseline is Go 1.27+. Exact versions and commits live in
-[upstream.json](upstream.json). The current sources are Go 1.27.3, x/net v0.62.0
+[upstream.json](upstream.json). The current sources are Go 1.27.4, x/net v0.62.0
 (public HTTP/2 adapters). HTTP/3 is maintained separately in
 `github.com/enetx/quic-go/http3`.
 
@@ -128,6 +128,14 @@ when comparing the request framing code with the sources pinned in
 [upstream.json](upstream.json). Browser values and profile policy stay in Surf.
 
 ## Update procedure
+
+The Go 1.27.4 update changes only `server.go` in the retained source tree.
+It imports the upstream fix for concurrent `MaxBytesReader` limit handling and
+response-header writes (CVE-2026-97054). The body reader records an atomic flag;
+the response writer owns header changes and connection-reuse decisions.
+`tests/http1/max_bytes_reader_test.go` adapts the upstream public-API regression
+and checks that an over-limit HTTP/1 connection is not reused. HTTP/2 remains
+on its existing source baseline; Go 1.27.4 changes no native HTTP/2 files.
 
 1. Run `python3 scripts/upstream.py audit` to review the local delta against
    the exact pinned source. Import grouping and gofmt-only changes are ignored.

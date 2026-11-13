@@ -80,7 +80,7 @@ func newPolicyTransport(t *testing.T, count int, hold bool, configure func(*http
 			events <- policyCapture{err: err}
 			return
 		}
-		defer conn.Close()
+		defer closeHTTP2Peer(conn)
 		conn.SetDeadline(time.Now().Add(5 * time.Second))
 		preface := make([]byte, len(http2.ClientPreface))
 		if _, err := io.ReadFull(conn, preface); err != nil {
