@@ -38,7 +38,7 @@ func TestFingerprintFirstStreamGOAWAY(t *testing.T) {
 									return
 								}
 								go func() {
-									defer conn.Close()
+									defer closeHTTP2Peer(conn)
 									conn.SetDeadline(time.Now().Add(3 * time.Second))
 									preface := make([]byte, len(http2.ClientPreface))
 									if _, err := io.ReadFull(conn, preface); err != nil {

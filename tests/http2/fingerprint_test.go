@@ -28,6 +28,17 @@ type observedRequest struct {
 	err        error
 }
 
+// closeHTTP2Peer sends FIN after the response, then drains pending client
+// control frames. Closing with unread data can reset TCP on Windows and hide
+// the response or GOAWAY that the test is meant to inspect.
+func closeHTTP2Peer(conn net.Conn) {
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		_ = tcp.CloseWrite()
+		_, _ = io.Copy(io.Discard, tcp)
+	}
+	_ = conn.Close()
+}
+
 func rawHTTP2Peer(ln net.Listener, done chan<- observedRequest) {
 	var got observedRequest
 	defer func() { done <- got }()
@@ -36,7 +47,7 @@ func rawHTTP2Peer(ln net.Listener, done chan<- observedRequest) {
 		got.err = err
 		return
 	}
-	defer conn.Close()
+	defer closeHTTP2Peer(conn)
 	conn.SetDeadline(time.Now().Add(3 * time.Second))
 	preface := make([]byte, len(http2.ClientPreface))
 	if _, got.err = io.ReadFull(conn, preface); got.err != nil {
