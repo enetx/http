@@ -292,3 +292,18 @@ both the public adapter and native transport. Its concurrent-stream matrix
 checks unchanged nil-policy behavior, promoted resets/GOAWAY, error identity
 and absence of an outgoing GOAWAY. Surf owns the Chrome-specific policy and
 its TLS/proxy/header/body regressions.
+
+## Existing HTTP/2 pool inspection
+
+`Transport.HasHTTP2Connection(*Request)` and the public `http2.Transport`
+adapter inspect the actual native pool for the same selected proxy route.
+They send nothing, reserve no stream and never dial. Busy reusable sessions
+remain visible, while GOAWAY, expired idle sessions, closed connections,
+HTTP/1-only policy and unavailable proxy routes report false. Custom protocol
+implementations and custom HTTP/2 pools are not introspected.
+
+The implementation is isolated in `transport_pool*.go`,
+`http2/transport_pool.go` and `internal/http2/connection_pool.go`; it requires no
+upstream core hook. Preserve `nethttpomithttp2` build coverage. Real trusted TLS
+regressions in `tests/transport_pool_test.go` cover both adapters, occupied
+streams, wire GOAWAY, route isolation, cancellation and concurrent probes.
